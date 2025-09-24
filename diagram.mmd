@@ -1,0 +1,83 @@
+classDiagram
+direction TB
+    class User {
+	    +int user_id
+	    +string username
+	    +string password_hash
+	    +bool online_status
+	    +datetime last_seen
+	    +List~Contact~ contacts
+	    +List~int~ blocked_users
+    }
+
+    class Contact {
+	    +int owner_id
+	    +int contact_id
+	    +string contact_name
+	    +datetime added_date
+    }
+
+    class Message {
+	    +int message_id
+	    +int sender_id
+	    +int receiver_id
+	    +string content
+	    +datetime timestamp
+	    +string status
+    }
+
+    class Chat {
+	    +int chat_id
+	    +string chat_type
+	    +List~int~ participants
+	    +List~Message~ messages
+	    +datetime created_date
+    }
+
+    class AuthManager {
+	    +Map~string, User~ sessions
+	    +login(username, password) User
+	    +logout(user_id) void
+	    +register(username, password) User
+    }
+
+    class ContactManager {
+	    +Map int, List ~Contact~  contacts
+	    +add_contact(owner_id, contact_id, contact_name) void
+	    +remove_contact(owner_id, contact_id) void
+	    +get_contacts(user_id) List~Contact~
+	    +search_contacts(user_id, query) List~Contact~
+    }
+
+    class NotificationService {
+	    +Map int, List~User~ observers
+	    +notify_new_message(receiver_id, message) void
+	    +notify_contact_online(user_id, contact_id) void
+    }
+
+    class MessageManager {
+	    +Map~int, Message~ messages
+	    +Map int, List~Message~ undelivered_messages
+	    +send_message(sender_id, receiver_id, content) Message
+	    +get_messages(user_id, contact_id) List~Message~
+	    +update_message_status(message_id, status) void
+    }
+
+	<<Interface>> AuthManager
+	<<Interface>> ContactManager
+	<<Interface>> NotificationService
+	<<Interface>> MessageManager
+
+    User "1" -- "*" Contact : has
+    Chat "1" -- "*" Message : contains
+    Message "1" -- "1" User : sender
+    Message "1" -- "1" User : receiver
+    AuthManager -- User : manages
+    ContactManager -- Contact : manages
+    ContactManager -- User : references
+    MessageManager -- Message : manages
+    MessageManager -- User : references
+    NotificationService ..> MessageManager : observes
+    NotificationService ..> User : notifies
+    MessageManager --> NotificationService : uses
+    AuthManager --> User : creates
