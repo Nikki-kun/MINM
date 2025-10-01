@@ -13,7 +13,17 @@ class Contact {
         std::string contactName;
         std::chrono::system_clock addedDate;
     public:
+        Contact();
+        ~Contact();
         contact_id getId();
+        user_id getOwnerId();
+        void setOwnerId(user_id id);
+        user_id getContactId();
+        void setContactId(user_id id);
+        std::string getContactName();
+        void setContactName(std::string name);
+        std::chrono::system_clock getAddedDate();
+        void setAddedDate(std::chrono::system_clock date);
 };
 
 #endif
