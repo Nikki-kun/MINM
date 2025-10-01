@@ -2,14 +2,15 @@
 #define CHAT_H
 
 #include "types.h"
-#include "message.h"
+#include <chrono>
+#include <vector>
 
-typedef struct {
-    chat_id chat_id;
+class Chat {
+    chat_id id;
     chat_type type;
-    list* participants;
-    list* messages;
-    time_t created_date;
-} chat;
+    std::vector<user_id>* participants;
+    std::vector<message_id>* messages;
+    std::chrono::system_clock created_date;
+};
 
 #endif

@@ -2,14 +2,16 @@
 #define MESSAGE_H
 
 #include "types.h"
+#include <chrono>
+#include <string>
 
-typedef struct {
-    message_id message_id;
+class Message{
+    message_id id;
     user_id sender_id;
     user_id receiver_id;
-    char content[MAX_CONTENT_LEN];
-    time_t timestamp;
+    std::string content;
+    std::chrono::system_clock timestamp;
     message_status status;
-} message;
+};
 
 #endif

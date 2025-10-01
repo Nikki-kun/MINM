@@ -2,12 +2,18 @@
 #define CONTACT_H
 
 #include "types.h"
+#include <string>
+#include <chrono>
 
-typedef struct {
-    user_id owner_id;
-    user_id contact_id;
-    char contact_name[MAX_CONTACT_NAME_LEN];
-    time_t added_date;
-} contact;
+class Contact {
+    private:
+        contact_id id;
+        user_id ownerId;
+        user_id contactId;
+        std::string contactName;
+        std::chrono::system_clock addedDate;
+    public:
+        contact_id getId();
+};
 
 #endif
