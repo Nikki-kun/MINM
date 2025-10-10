@@ -1,35 +1,26 @@
-#ifndef USER_H
-#define USER_H
-
-#include "types.h"
-#include "contact.h"
-#include <chrono>
+#pragma once
 #include <string>
-#include <vector>
+#include "types.h"
 
 class User {
-    private:
-        user_id id;
-        std::string username;
-        std::string password;
-        bool online;
-        std::chrono::system_clock lastSeen;
-        std::vector<Contact>* contacts;
-        std::vector<Contact>* blockedUsers;
-    public:
-        User(user_id id, std::string username, std::string password);
-        ~User();
-        user_id getId();
-        std::string getUserName();
-        void setUserName(std::string name);
-        bool isOnline();
-        void setOnline(bool status);
-        std::chrono::system_clock getLastSeen();
-        void setLastSeen(std::chrono::system_clock time);
-        std::vector<Contact> getContacts();
-        void setContacts(std::vector<Contact> contacts);
-        void getBlockedUsers();
-        std::vector<Contact> setBlockedUsers();
-};
+private:
+	UserID user_id;
+	std::string username;
+	std::string display_name;
+	Timestamp registration_date;
+	bool is_online;
 
-#endif
+public:
+	User(UserID id, const std::string& name, const std::string& display = "");
+
+	// Getters
+	UserID getUserId() const;
+	std::string getUsername() const;
+	std::string getDisplayName() const;
+	Timestamp getRegistrationDate() const;
+	bool getOnlineStatus() const;
+
+	// Setters
+	void setDisplayName(const std::string& name);
+	void setOnlineStatus(bool online);
+};

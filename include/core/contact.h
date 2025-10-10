@@ -1,29 +1,21 @@
-#ifndef CONTACT_H
-#define CONTACT_H
-
+#pragma once
 #include "types.h"
 #include <string>
-#include <chrono>
 
 class Contact {
-    private:
-        contact_id id;
-        user_id ownerId;
-        user_id contactId;
-        std::string contactName;
-        std::chrono::system_clock addedDate;
-    public:
-        Contact();
-        ~Contact();
-        contact_id getId();
-        user_id getOwnerId();
-        void setOwnerId(user_id id);
-        user_id getContactId();
-        void setContactId(user_id id);
-        std::string getContactName();
-        void setContactName(std::string name);
-        std::chrono::system_clock getAddedDate();
-        void setAddedDate(std::chrono::system_clock date);
-};
+private:
+	UserID owner_id;
+	UserID contact_id;
+	std::string alias;
+	Timestamp added_date;
 
-#endif
+public:
+	Contact(UserID owner, UserID contact, const std::string& contact_alias = "");
+
+	UserID getOwnerId() const;
+	UserID getContactId() const;
+	std::string getAlias() const;
+	Timestamp getAddedDate() const;
+
+	void setAlias(const std::string& new_alias);
+};

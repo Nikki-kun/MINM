@@ -1,34 +1,32 @@
-#ifndef MESSAGE_H
-#define MESSAGE_H
-
-#include "types.h"
-#include <chrono>
+#pragma once
 #include <string>
+#include <vector>
+#include "types.h"
 
-class Message{
+class Message {
 private:
-    message_id id;
-    user_id sender_id;
-    user_id receiver_id;
-    std::string content;
-    std::chrono::system_clock::time_point timestamp;
-    message_status status;
+	MessageID message_id;
+	GroupID group_id;
+	UserID author_id;
+	std::string content;
+	Timestamp timestamp;
+	MessageStatus status;
+	std::vector<std::string> attachments;
 
 public:
-    Message(message_id id, user_id sender_id, user_id receiver_id, std::string content, std::chrono::system_clock::time_point timestamp);
-    ~Message();
-    message_id getId();
-    user_id getSenderId();
-    void setSenderId(user_id sender_id);
-    user_id getReceiverId();
-    void setReceiverId(user_id receiver_id);
-    std::string getContent();
-    void setContent(std::string content);
-    std::chrono::system_clock::time_point getTimestamp();
-    void setTimestamp(std::chrono::system_clock::time_point timestamp);
-    message_status getStatus();
-    void setStatus(message_status status);
+	Message(MessageID msg_id, GroupID grp_id, UserID auth_id, const std::string& content);
+
+	// Getters
+	MessageID getMessageId() const;
+	GroupID getGroupId() const;
+	UserID getAuthorId() const;
+	std::string getContent() const;
+	Timestamp getTimestamp() const;
+	MessageStatus getStatus() const;
+	std::vector<std::string> getAttachments() const;
+
+	// Setters
+	void setStatus(MessageStatus new_status);
+	void addAttachment(const std::string& attachment_path);
+	void setContent(const std::string& new_content);
 };
-
-#endif
-

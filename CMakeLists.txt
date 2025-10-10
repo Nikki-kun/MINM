@@ -1,16 +1,27 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.12)
+project(MINM VERSION 1.0.0 LANGUAGES CXX)
 
-project(MINM VERSION 1.0 LANGUAGES CXX)
-
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+set(SOURCES
+    src/init.cpp
+    src/main.cpp
+)
 
 include_directories(include)
 
-file(GLOB_RECURSE SOURCES "src/*.cpp")
+add_executable(minm ${SOURCES})
 
-file(GLOB_RECURSE HEADERS "include/*.h" "include/*.hpp")
+target_compile_features(minm PRIVATE cxx_std_17)
+target_include_directories(minm PRIVATE include)
 
-add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+set_target_properties(minm PROPERTIES
+    CXX_EXTENSIONS OFF
+)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_compile_options(minm PRIVATE -O2 -DNDEBUG)
+else()
+    target_compile_options(minm PRIVATE -g -O0)
+endif()
