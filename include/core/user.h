@@ -13,14 +13,12 @@ private:
 public:
 	User(UserID id, const std::string& name, const std::string& display = "");
 
-	// Getters
 	UserID getUserId() const;
 	std::string getUsername() const;
 	std::string getDisplayName() const;
 	Timestamp getRegistrationDate() const;
 	bool getOnlineStatus() const;
 
-	// Setters
 	void setDisplayName(const std::string& name);
 	void setOnlineStatus(bool online);
 };
