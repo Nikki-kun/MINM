@@ -11,7 +11,7 @@ class Contact {
         user_id ownerId;
         user_id contactId;
         std::string contactName;
-        std::chrono::system_clock addedDate;
+        std::chrono::system_clock::time_point addedDate;
     public:
         Contact();
         ~Contact();

@@ -13,7 +13,7 @@ class User {
         std::string username;
         std::string password;
         bool online;
-        std::chrono::system_clock lastSeen;
+        std::chrono::system_clock::time_point lastSeen;
         std::vector<Contact>* contacts;
         std::vector<Contact>* blockedUsers;
     public:
@@ -24,8 +24,8 @@ class User {
         void setUserName(std::string name);
         bool isOnline();
         void setOnline(bool status);
-        std::chrono::system_clock getLastSeen();
-        void setLastSeen(std::chrono::system_clock time);
+        std::chrono::system_clock::time_point getLastSeen();
+        void setLastSeen(std::chrono::system_clock::time_point time);
         std::vector<Contact> getContacts();
         void setContacts(std::vector<Contact> contacts);
         void getBlockedUsers();
