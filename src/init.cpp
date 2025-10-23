@@ -82,7 +82,6 @@ void applyTheme(QMainWindow &window, const QString &theme) {
             "    font-size: 16px;"
             "    background: " + fieldBgColor + ";"
             "    color: " + textColor + ";"
-            "    placeholder-text-color: " + subtextColor + ";"
             "}"
             "QLineEdit:focus {"
             "    border-color: " + COLOR_ACCENT_GREEN + ";"
