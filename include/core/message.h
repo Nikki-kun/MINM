@@ -5,7 +5,7 @@
 #include <chrono>
 #include <string>
 
-class Message{
+class Message {
 private:
     message_id id;
     user_id sender_id;
@@ -16,19 +16,21 @@ private:
 
 public:
     Message(message_id id, user_id sender_id, user_id receiver_id, std::string content, std::chrono::system_clock::time_point timestamp);
-    ~Message();
-    message_id getId();
-    user_id getSenderId();
-    void setSenderId(user_id sender_id);
-    user_id getReceiverId();
-    void setReceiverId(user_id receiver_id);
-    std::string getContent();
+    Message(message_id id, user_id sender_id, user_id receiver_id, std::string content);
+    ~Message() = default;
+
+    message_id getId() const;
+    user_id getSenderId() const;
+    user_id getReceiverId() const;
+    std::string getContent() const;
     void setContent(std::string content);
-    std::chrono::system_clock::time_point getTimestamp();
+    std::chrono::system_clock::time_point getTimestamp() const;
     void setTimestamp(std::chrono::system_clock::time_point timestamp);
-    message_status getStatus();
+    message_status getStatus() const;
     void setStatus(message_status status);
+    
+    bool isValid() const;
+    static bool validateContent(const std::string& content);
 };
 
 #endif
-

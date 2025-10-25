@@ -6,24 +6,30 @@
 #include <chrono>
 
 class Contact {
-    private:
-        contact_id id;
-        user_id ownerId;
-        user_id contactId;
-        std::string contactName;
-        std::chrono::system_clock::time_point addedDate;
-    public:
-        Contact();
-        ~Contact();
-        contact_id getId();
-        user_id getOwnerId();
-        void setOwnerId(user_id id);
-        user_id getContactId();
-        void setContactId(user_id id);
-        std::string getContactName();
-        void setContactName(std::string name);
-        std::chrono::system_clock getAddedDate();
-        void setAddedDate(std::chrono::system_clock date);
+private:
+    contact_id id;
+    user_id ownerId;
+    user_id contactId;
+    std::string contactName;
+    std::chrono::system_clock::time_point addedDate;
+
+public:
+    Contact(contact_id id, user_id ownerId, user_id contactId, std::string contactName, std::chrono::system_clock::time_point addedDate);
+    Contact(contact_id id, user_id ownerId, user_id contactId, std::string contactName);
+    ~Contact() = default;
+
+    contact_id getId() const;
+    user_id getOwnerId() const;
+    user_id getContactId() const;
+    std::string getContactName() const;
+    std::chrono::system_clock::time_point getAddedDate() const;
+
+    void setContactId(user_id id);
+    void setContactName(std::string name);
+    void setAddedDate(std::chrono::system_clock::time_point date);
+
+    bool isValid() const;
+    static bool validateContactName(const std::string& contactName);
 };
 
 #endif
