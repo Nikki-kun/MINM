@@ -1,26 +1,37 @@
 classDiagram
 direction TB
+
     class User {
         -user_id id
         -std::string username
         -std::string password
         -bool online
-        -std::chrono::system_clock lastSeen
-        -std::vector<Contact>* contacts
-        -std::vector<Contact>* blockedUsers
+        -std::chrono::system_clock::time_point lastSeen
+        -std::vector~Contact~ contacts
+        -std::vector~Contact~ blockedUsers
         +User(user_id, std::string, std::string)
         +~User()
         +getId() user_id
         +getUserName() std::string
         +setUserName(std::string)
+        +getPassword() std::string
+        +setPassword(std::string)
         +isOnline() bool
         +setOnline(bool)
-        +getLastSeen() std::chrono::system_clock
-        +setLastSeen(std::chrono::system_clock)
-        +getContacts() std::vector<Contact>
-        +setContacts(std::vector<Contact>)
-        +getBlockedUsers() void
-        +setBlockedUsers() std::vector<Contact>
+        +getLastSeen() std::chrono::system_clock::time_point
+        +setLastSeen(std::chrono::system_clock::time_point)
+        +getContacts() std::vector~Contact~
+        +setContacts(std::vector~Contact~)
+        +addContact(Contact)
+        +removeContact(user_id)
+        +hasContact(user_id) bool
+        +getBlockedUsers() std::vector~Contact~
+        +setBlockedUsers(std::vector~Contact~)
+        +blockUser(Contact)
+        +unblockUser(user_id)
+        +isUserBlocked(user_id) bool
+        +validateUsername(std::string) bool
+        +validatePassword(std::string) bool
     }
 
     class Contact {
@@ -28,18 +39,20 @@ direction TB
         -user_id ownerId
         -user_id contactId
         -std::string contactName
-        -std::chrono::system_clock addedDate
-        +Contact()
+        -std::chrono::system_clock::time_point addedDate
+        +Contact(contact_id, user_id, user_id, std::string, std::chrono::system_clock::time_point)
+        +Contact(contact_id, user_id, user_id, std::string)
         +~Contact()
         +getId() contact_id
         +getOwnerId() user_id
-        +setOwnerId(user_id)
         +getContactId() user_id
         +setContactId(user_id)
         +getContactName() std::string
         +setContactName(std::string)
-        +getAddedDate() std::chrono::system_clock
-        +setAddedDate(std::chrono::system_clock)
+        +getAddedDate() std::chrono::system_clock::time_point
+        +setAddedDate(std::chrono::system_clock::time_point)
+        +isValid() bool
+        +validateContactName(std::string) bool
     }
 
     class Message {
@@ -50,41 +63,50 @@ direction TB
         -std::chrono::system_clock::time_point timestamp
         -message_status status
         +Message(message_id, user_id, user_id, std::string, std::chrono::system_clock::time_point)
+        +Message(message_id, user_id, user_id, std::string)
         +~Message()
         +getId() message_id
         +getSenderId() user_id
-        +setSenderId(user_id)
         +getReceiverId() user_id
-        +setReceiverId(user_id)
         +getContent() std::string
         +setContent(std::string)
         +getTimestamp() std::chrono::system_clock::time_point
         +setTimestamp(std::chrono::system_clock::time_point)
         +getStatus() message_status
         +setStatus(message_status)
+        +isValid() bool
+        +validateContent(std::string) bool
     }
 
     class Chat {
         -chat_id id
         -chat_type type
-        -std::vector<user_id>* participants
-        -std::vector<message_id>* messages
+        -std::vector~user_id~ participants
+        -std::vector~message_id~ messages
         -std::chrono::system_clock::time_point created_date
-        +Chat(chat_id, chat_type, std::vector<user_id>*, std::vector<message_id>*, std::chrono::system_clock::time_point)
+        +Chat(chat_id, chat_type, std::vector~user_id~, std::vector~message_id~, std::chrono::system_clock::time_point)
+        +Chat(chat_id, chat_type, std::vector~user_id~)
         +~Chat()
         +getId() chat_id
         +getType() chat_type
         +setType(chat_type)
-        +getParticipants() std::vector<user_id>*
-        +setParticipants(std::vector<user_id>*)
-        +getMessages() std::vector<message_id>*
-        +setMessages(std::vector<message_id>*)
+        +getParticipants() std::vector~user_id~
+        +setParticipants(std::vector~user_id~)
+        +addParticipant(user_id)
+        +removeParticipant(user_id)
+        +hasParticipant(user_id) bool
+        +getMessages() std::vector~message_id~
+        +setMessages(std::vector~message_id~)
+        +addMessage(message_id)
+        +removeMessage(message_id)
+        +hasMessage(message_id) bool
         +getCreatedDate() std::chrono::system_clock::time_point
         +setCreatedDate(std::chrono::system_clock::time_point)
+        +isValid() bool
     }
 
     class AuthManager {
-        -std::unordered_map<std::string, User*> sessions
+        -std::unordered_map~std::string, User*~ sessions
         +AuthManager()
         +~AuthManager()
         +login(std::string, std::string) User*
@@ -95,37 +117,37 @@ direction TB
     }
 
     class ContactManager {
-        -std::unordered_map<user_id, std::vector<Contact>*> contacts
+        -std::unordered_map~user_id, std::vector~Contact~~ contacts
         +ContactManager()
         +~ContactManager()
         +addContact(user_id, user_id, std::string) void
         +removeContact(user_id, user_id) void
-        +getContacts(user_id) std::vector<Contact>
-        +searchContacts(user_id, std::string) std::vector<Contact>
+        +getContacts(user_id) std::vector~Contact~
+        +searchContacts(user_id, std::string) std::vector~Contact~
         +operator+(Contact&) ContactManager&
         +operator-(Contact&) ContactManager&
-        +operator+(std::vector<Contact>&) ContactManager&
-        +operator-(std::vector<Contact>&) ContactManager&
+        +operator+(std::vector~Contact~&) ContactManager&
+        +operator-(std::vector~Contact~&) ContactManager&
     }
 
     class MessageManager {
-        -std::unordered_map<message_id, Message*> messages
-        -std::unordered_map<user_id, std::vector<Message*>*> undelivered_messages
+        -std::unordered_map~message_id, Message*~ messages
+        -std::unordered_map~user_id, std::vector~Message*~~ undelivered_messages
         +MessageManager()
         +~MessageManager()
         +sendMessage(user_id, user_id, std::string) Message*
-        +getMessages(user_id, user_id) std::vector<Message*>
+        +getMessages(user_id, user_id) std::vector~Message*~
         +updateMessageStatus(message_id, message_status) void
-        +getUndeliveredMessages(user_id) std::vector<Message*>
+        +getUndeliveredMessages(user_id) std::vector~Message*~
         +markMessagesAsDelivered(user_id) void
         +operator+(Message*) MessageManager&
         +operator-(Message*) MessageManager&
-        +operator+(std::vector<Message*>&) MessageManager&
-        +operator-(std::vector<Message*>&) MessageManager&
+        +operator+(std::vector~Message*~&) MessageManager&
+        +operator-(std::vector~Message*~&) MessageManager&
     }
 
     class NotificationManager {
-        -std::unordered_map<user_id, std::vector<User*>*> observers
+        -std::unordered_map~user_id, std::vector~User*~~ observers
         +NotificationManager()
         +~NotificationManager()
         +notifyNewMessage(user_id, Message*) void
@@ -134,8 +156,8 @@ direction TB
         +removeObserver(user_id, User*) void
         +operator+(User*) NotificationManager&
         +operator-(User*) NotificationManager&
-        +operator+(std::vector<User*>&) NotificationManager&
-        +operator-(std::vector<User*>&) NotificationManager&
+        +operator+(std::vector~User*~&) NotificationManager&
+        +operator-(std::vector~User*~&) NotificationManager&
     }
 
     User "1" -- "*" Contact : has
