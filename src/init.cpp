@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
     headerLayout->addStretch();
     headerLayout->addWidget(themeButton);
     
-    QLabel *subtitleLabel = new QLabel("Добро пожаловать назад");
+    QLabel *subtitleLabel = new QLabel("Добро пожаловать");
     subtitleLabel->setAlignment(Qt::AlignCenter);
     QFont subtitleFont("Arial", 14);
     subtitleLabel->setFont(subtitleFont);
