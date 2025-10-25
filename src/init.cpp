@@ -31,12 +31,6 @@ const QString COLOR_LIGHT_TEXT = "#222222";
 const QString COLOR_LIGHT_SUBTEXT = "#555555";
 const QString COLOR_LIGHT_BORDER = "#e1e1e1";
 
-
-/**
- * @brief Применяет выбранный стиль ко всем элементам окна.
- * @param window Главное окно, к которому применяется стиль.
- * @param theme Выбранная тема (THEME_DARK или THEME_LIGHT).
- */
 void applyTheme(QMainWindow &window, const QString &theme) {
     QString mainBgColor;
     QString fieldBgColor;
@@ -131,10 +125,6 @@ void applyTheme(QMainWindow &window, const QString &theme) {
     if (QWidget *separator = window.centralWidget()->findChild<QWidget*>("separatorWidget")) {
         separator->setStyleSheet(QString("background: rgba(255,255,255,") + (theme == THEME_DARK ? "0.2" : "0.5") + ");");
     }
-    
-    if (QPushButton *themeButton = window.centralWidget()->findChild<QPushButton*>("themeButton")) {
-        themeButton->setText(theme == THEME_DARK ? "☀️" : "🌙");
-    }
 }
 
 int main(int argc, char *argv[])
@@ -150,7 +140,6 @@ int main(int argc, char *argv[])
     
     QMainWindow window;
     window.setWindowTitle("MINM Messenger - Вход");
-    window.setFixedSize(400, 550);
     
     const QRect screenGeometry = QGuiApplication::primaryScreen()->geometry();
     window.setGeometry(QStyle::alignedRect(
@@ -169,15 +158,6 @@ int main(int argc, char *argv[])
     
     QHBoxLayout *headerLayout = new QHBoxLayout();
     
-    QPushButton *themeButton = new QPushButton();
-    themeButton->setObjectName("themeButton");
-    themeButton->setFixedSize(30, 30);
-    themeButton->setToolTip("Переключить тему");
-    themeButton->setStyleSheet(
-        "QPushButton { border: none; font-size: 18px; color: #aaaaaa; background: transparent; }"
-        "QPushButton:hover { color: #ffffff; }"
-    );
-
     QLabel *titleLabel = new QLabel("MINM");
     titleLabel->setAlignment(Qt::AlignCenter);
     QFont titleFont("Arial", 36, QFont::ExtraBold);
@@ -186,7 +166,6 @@ int main(int argc, char *argv[])
     headerLayout->addStretch();
     headerLayout->addWidget(titleLabel);
     headerLayout->addStretch();
-    headerLayout->addWidget(themeButton);
     
     QLabel *subtitleLabel = new QLabel("Добро пожаловать");
     subtitleLabel->setAlignment(Qt::AlignCenter);
@@ -234,16 +213,6 @@ int main(int argc, char *argv[])
     mainLayout->addLayout(registerLayout);
     mainLayout->addStretch();
     
-    QObject::connect(themeButton, &QPushButton::clicked, [&]() {
-        QString newTheme = (currentTheme == THEME_DARK) ? THEME_LIGHT : THEME_DARK;
-        
-        applyTheme(window, newTheme);
-        
-        settings.setValue(SETTINGS_KEY_THEME, newTheme);
-        
-        currentTheme = newTheme;
-    });
-
     QObject::connect(loginButton, &QPushButton::clicked, [&]() {
         QString login = loginEdit->text();
         QString password = passwordEdit->text();
