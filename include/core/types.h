@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <stdbool.h>
 #include <stdint.h>
+#include <cstddef>
 
 typedef int32_t contact_id;
 typedef int32_t user_id;
