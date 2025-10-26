@@ -1,4 +1,5 @@
 .vscode/
 build/
 .cache/
-docs/
+docs/html/
+test_server/__pycache__
