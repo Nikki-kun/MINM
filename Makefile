@@ -18,6 +18,12 @@ install:
 		cmake \
 		qt6-base-dev \
 		qt6-tools-dev \
+		qt6-l10n-tools \
+		libgl1-mesa-dev \
+		libglu1-mesa-dev \
+		mesa-common-dev \
+		freeglut3-dev \
+		libopengl0 \
 		python3 \
 		python3-pip \
 		doxygen \
@@ -37,7 +43,7 @@ docs:
 	doxygen Doxyfile
 
 test:
-	python3 test_server/main.py
+	python3 test_server.py
 
 clean:
 	$(RM) $(BUILD_DIR)
@@ -45,6 +51,7 @@ clean:
 
 rebuild: clean build
 
+rerun: clean run
 
 help:
 	@echo "Available targets:"
@@ -52,7 +59,8 @@ help:
 	@echo "  build   - Build project in build directory"
 	@echo "  run     - Build and run project"
 	@echo "  docs    - Generate documentation via Doxygen"
-	@echo "  test    - Run test server"
+	@echo "  test    - Run test server (test_server.py)"
 	@echo "  clean   - Remove build and docs/html directories"
 	@echo "  rebuild - Full project rebuild"
+	@echo "  rerun   - Full rebuild and run"
 	@echo "  help    - Show this help"
