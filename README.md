@@ -28,7 +28,7 @@ make run
 | `make install` | Install all dependencies (apt packages + flask) |
 | `make build` | Build project in build directory |
 | `make run` | Build and run project |
-| `make test` | Run test server (test_server.py) |
+| `make test` | Run test server |
 | `make docs` | Generate documentation via Doxygen |
 | `make clean` | Remove build and docs/html directories |
 | `make rebuild` | Full project rebuild |
