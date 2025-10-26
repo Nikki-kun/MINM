@@ -2,8 +2,6 @@
 #define CHAT_H
 
 #include "types.h"
-#include <chrono>
-#include <vector>
 
 class Chat {
 private:

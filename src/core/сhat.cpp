@@ -1,6 +1,4 @@
 #include "core/сhat.h"
-#include <algorithm>
-#include <stdexcept>
 
 Chat::Chat(chat_id id, chat_type type, const std::vector<user_id>& participants, 
            const std::vector<message_id>& messages, std::chrono::system_clock::time_point created_date)

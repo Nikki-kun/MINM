@@ -1,5 +1,4 @@
 #include "core/contact.h"
-#include <stdexcept>
 
 Contact::Contact(contact_id id, user_id ownerId, user_id contactId, 
                  std::string contactName, std::chrono::system_clock::time_point addedDate)

@@ -1,6 +1,4 @@
 #include "core/user.h"
-#include <algorithm>
-#include <stdexcept>
 
 User::User(user_id id, std::string username, std::string password) 
     : id(id), username(username), password(password), online(false),

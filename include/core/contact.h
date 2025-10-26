@@ -2,8 +2,6 @@
 #define CONTACT_H
 
 #include "types.h"
-#include <string>
-#include <chrono>
 
 class Contact {
 private:

@@ -1,5 +1,4 @@
 #include "core/message.h"
-#include <stdexcept>
 
 Message::Message(message_id id, user_id sender_id, user_id receiver_id, 
                  std::string content, std::chrono::system_clock::time_point timestamp)

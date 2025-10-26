@@ -2,8 +2,6 @@
 #define MESSAGE_H
 
 #include "types.h"
-#include <chrono>
-#include <string>
 
 class Message {
 private:
