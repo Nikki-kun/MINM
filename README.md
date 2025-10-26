@@ -10,18 +10,30 @@ A linux messenger application built with C++ and Qt.
 - Qt6 (Core, Widgets, Gui)
 - C++20 compatible compiler
 
-### Linux
+### Quick Start
 
 ```bash
 git clone https://github.com/Nikki-kun/MINM.git
 cd MINM
 
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
+make install
 
-./MINM
+make run
 ```
+
+### Make Commands
+
+| Command | Description |
+|---------|-------------|
+| `make install` | Install all dependencies (apt packages + flask) |
+| `make build` | Build project in build directory |
+| `make run` | Build and run project |
+| `make test` | Run test server (test_server.py) |
+| `make docs` | Generate documentation via Doxygen |
+| `make clean` | Remove build and docs/html directories |
+| `make rebuild` | Full project rebuild |
+| `make rerun` | Full rebuild and run |
+| `make help` | Show all available commands |
 
 The executable will be created in the `build` directory.
 
@@ -37,7 +49,7 @@ The executable will be created in the `build` directory.
 To generate HTML documentation using Doxygen:
 
 ```bash
-doxygen Doxyfile
+make docs
 ```
 
 ### Documentation Location
