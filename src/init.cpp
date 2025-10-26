@@ -13,7 +13,7 @@
 #include <QStyle>
 #include <QIcon>
 #include <QDebug>
-#include "managers/auth_manager.h"  // Добавляем заголовок AuthManager
+#include "managers/auth_manager.h"
 
 const QString SETTINGS_KEY_THEME = "ui/theme";
 const QString THEME_DARK = "dark";
@@ -32,7 +32,6 @@ const QString COLOR_LIGHT_TEXT = "#222222";
 const QString COLOR_LIGHT_SUBTEXT = "#555555";
 const QString COLOR_LIGHT_BORDER = "#e1e1e1";
 
-// Глобальный указатель на AuthManager для доступа из лямбд
 AuthManager* g_authManager = nullptr;
 
 void applyTheme(QMainWindow &window, const QString &theme) {
@@ -146,7 +145,6 @@ int main(int argc, char *argv[])
     
     QString currentTheme = settings.value(SETTINGS_KEY_THEME, THEME_DARK).toString();
     
-    // Создаем AuthManager с URL сервера
     AuthManager authManager("http://localhost:8080/api");
     g_authManager = &authManager;
     
@@ -225,13 +223,11 @@ int main(int argc, char *argv[])
     mainLayout->addLayout(registerLayout);
     mainLayout->addStretch();
     
-    // Подключаем сигналы AuthManager
     QObject::connect(&authManager, &AuthManager::loginSuccess, [&](User* user) {
         loginButton->setEnabled(true);
         QMessageBox::information(&window, "Успех", 
             QString("Вход выполнен!\nДобро пожаловать, %1").arg(QString::fromStdString(user->getUserName())));
         
-        // Здесь можно перейти к главному окну приложения
         qDebug() << "Пользователь вошел:" << user->getId();
     });
     
@@ -249,7 +245,6 @@ int main(int argc, char *argv[])
         QMessageBox::warning(&window, "Ошибка регистрации", error);
     });
     
-    // Обработчик кнопки входа
     QObject::connect(loginButton, &QPushButton::clicked, [&]() {
         QString login = loginEdit->text();
         QString password = passwordEdit->text();
@@ -257,16 +252,13 @@ int main(int argc, char *argv[])
         if (login.isEmpty() || password.isEmpty()) {
             QMessageBox::warning(&window, "Ошибка", "Заполните все поля");
         } else {
-            // Блокируем кнопку на время запроса
             loginButton->setEnabled(false);
             loginButton->setText("Вход...");
             
-            // Вызываем AuthManager для входа
             authManager.login(login.toStdString(), password.toStdString());
         }
     });
     
-    // Обработчик кнопки регистрации
     QObject::connect(registerButton, &QPushButton::clicked, [&]() {
         QString login = loginEdit->text();
         QString password = passwordEdit->text();
@@ -274,12 +266,10 @@ int main(int argc, char *argv[])
         if (login.isEmpty() || password.isEmpty()) {
             QMessageBox::warning(&window, "Ошибка", "Заполните все поля");
         } else {
-            // Вызываем AuthManager для регистрации
             authManager.registerUser(login.toStdString(), password.toStdString());
         }
     });
     
-    // Обработка нажатия Enter в полях ввода
     QObject::connect(loginEdit, &QLineEdit::returnPressed, [&]() {
         passwordEdit->setFocus();
     });
@@ -294,7 +284,6 @@ int main(int argc, char *argv[])
     
     int result = app.exec();
     
-    // Очищаем глобальный указатель перед выходом
     g_authManager = nullptr;
     
     return result;
