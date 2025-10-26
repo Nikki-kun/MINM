@@ -46,8 +46,8 @@ BUILTIN_STL_SUPPORT    = NO
 # Build options
 #---------------------------------------------------------------------------
 EXTRACT_ALL            = YES
-EXTRACT_PRIVATE        = NO
-EXTRACT_STATIC         = NO
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
 EXTRACT_LOCAL_CLASSES  = YES
 EXTRACT_LOCAL_METHODS  = NO
 HIDE_UNDOC_MEMBERS     = NO
@@ -88,7 +88,6 @@ WARN_FORMAT            = "$file:$line: $text"
 # Input options
 #---------------------------------------------------------------------------
 INPUT                  = diagram.mmd README.md include src
-Mermaid_FILE           = diagram.mmd
 INPUT_ENCODING         = UTF-8
 FILE_PATTERNS          = *.cpp *.h *.hpp *.cxx *.hxx *mmd
 RECURSIVE              = YES
@@ -154,7 +153,7 @@ CALL_GRAPH             = NO
 CALLER_GRAPH           = NO
 GRAPHICAL_HIERARCHY    = YES
 DIRECTORY_GRAPH        = YES
-DOT_IMAGE_FORMAT       = svg png
+DOT_IMAGE_FORMAT       = svg
 DOT_GRAPH_MAX_NODES    = 50
 MAX_DOT_GRAPH_DEPTH    = 0
 DOT_TRANSPARENT        = NO
