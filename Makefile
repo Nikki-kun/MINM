@@ -43,7 +43,7 @@ docs:
 	doxygen Doxyfile
 
 test:
-	python3 test_server.py
+	python3 test_server/main.py
 
 clean:
 	$(RM) $(BUILD_DIR)
