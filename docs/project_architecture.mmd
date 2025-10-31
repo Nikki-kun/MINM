@@ -1,3 +1,4 @@
+classDiagram
 direction TB
 
 class User {
@@ -120,12 +121,12 @@ class AuthManager {
     -handleLogoutReply(QNetworkReply* reply) void
     -parseUserFromJson(const QJsonObject& json) User*
     -parseContactFromJson(const QJsonObject& json) Contact
-    +loginSuccess(User* user)
-    +loginFailed(const QString& error)
-    +registrationSuccess(User* user)
-    +registrationFailed(const QString& error)
-    +logoutSuccess(user_id user_id)
-    +logoutFailed(user_id user_id, const QString& error)
+    +loginSuccess(User* user)$
+    +loginFailed(const QString& error)$
+    +registrationSuccess(User* user)$
+    +registrationFailed(const QString& error)$
+    +logoutSuccess(user_id user_id)$
+    +logoutFailed(user_id user_id, const QString& error)$
 }
 
 class ContactManager {
@@ -186,4 +187,4 @@ NotificationManager ..> User : notifies
 MessageManager --> NotificationManager : uses
 AuthManager --> User : creates
 AuthManager ..> QNetworkAccessManager : uses
-AuthManager ..> QObject : extends
+AuthManager --|> QObject : extends
