@@ -1,14 +1,17 @@
+// auth_manager.cpp
 #include "managers/auth_manager.h"
 #include <QNetworkRequest>
 #include <QJsonArray>
 #include <QDateTime>
 
 AuthManager::AuthManager(const QString& serverUrl) 
-    : serverBaseUrl(serverUrl) {
+    : serverBaseUrl(serverUrl), settings("MINM", "AuthManager") {
     networkManager = new QNetworkAccessManager(this);
     
     connect(networkManager, &QNetworkAccessManager::finished,
             this, &AuthManager::handleLoginReply);
+    
+    loadUsers();
 }
 
 AuthManager::~AuthManager() {
@@ -96,6 +99,7 @@ void AuthManager::handleLoginReply(QNetworkReply* reply) {
             std::string token = json["token"].toString().toStdString();
             
             sessions[token] = user;
+            saveUsers();
             emit loginSuccess(user);
         } else {
             emit loginFailed(json["error"].toString());
@@ -118,6 +122,7 @@ void AuthManager::handleRegistrationReply(QNetworkReply* reply) {
             std::string token = json["token"].toString().toStdString();
             
             sessions[token] = user;
+            saveUsers();
             emit registrationSuccess(user);
         } else {
             emit registrationFailed(json["error"].toString());
@@ -144,6 +149,7 @@ void AuthManager::handleLogoutReply(QNetworkReply* reply) {
                     sessionToken = it->first;
                     delete it->second;
                     sessions.erase(it);
+                    saveUsers();
                     break;
                 }
             }
@@ -211,6 +217,80 @@ bool AuthManager::isUserLoggedIn(user_id user_id) const {
 }
 
 void AuthManager::clearExpiredSessions() {
-    // This would typically check session expiration times
-    // For now, we'll keep all sessions until logout
+    auto currentTime = std::chrono::system_clock::now();
+    auto it = sessions.begin();
+    while (it != sessions.end()) {
+        auto lastSeen = it->second->getLastSeen();
+        auto duration = std::chrono::duration_cast<std::chrono::hours>(currentTime - lastSeen);
+        if (duration.count() > 24) {
+            delete it->second;
+            it = sessions.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    saveUsers();
+}
+
+AuthManager& AuthManager::operator+(User* user) {
+    std::string token = std::to_string(user->getId()) + "_" + std::to_string(QDateTime::currentMSecsSinceEpoch());
+    sessions[token] = user;
+    saveUsers();
+    return *this;
+}
+
+AuthManager& AuthManager::operator-(user_id user_id) {
+    auto it = sessions.begin();
+    while (it != sessions.end()) {
+        if (it->second->getId() == user_id) {
+            delete it->second;
+            it = sessions.erase(it);
+            saveUsers();
+            break;
+        } else {
+            ++it;
+        }
+    }
+    return *this;
+}
+
+void AuthManager::saveUsers() {
+    settings.beginWriteArray("sessions");
+    int index = 0;
+    for (const auto& session : sessions) {
+        settings.setArrayIndex(index);
+        settings.setValue("token", QString::fromStdString(session.first));
+        settings.setValue("user_id", QVariant::fromValue(session.second->getId()));
+        settings.setValue("username", QString::fromStdString(session.second->getUserName()));
+        settings.setValue("password", QString::fromStdString(session.second->getPassword()));
+        settings.setValue("online", session.second->isOnline());
+        
+        qint64 lastSeenMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            session.second->getLastSeen().time_since_epoch()).count();
+        settings.setValue("lastSeen", lastSeenMs);
+        index++;
+    }
+    settings.endArray();
+}
+
+void AuthManager::loadUsers() {
+    int size = settings.beginReadArray("sessions");
+    for (int i = 0; i < size; ++i) {
+        settings.setArrayIndex(i);
+        std::string token = settings.value("token").toString().toStdString();
+        user_id id = settings.value("user_id").toLongLong();
+        std::string username = settings.value("username").toString().toStdString();
+        std::string password = settings.value("password").toString().toStdString();
+        
+        User* user = new User(id, username, password);
+        user->setOnline(settings.value("online").toBool());
+        
+        qint64 lastSeenMs = settings.value("lastSeen").toLongLong();
+        auto lastSeen = std::chrono::system_clock::time_point(
+            std::chrono::milliseconds(lastSeenMs));
+        user->setLastSeen(lastSeen);
+        
+        sessions[token] = user;
+    }
+    settings.endArray();
 }

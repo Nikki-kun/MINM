@@ -6,6 +6,7 @@
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSettings>
 #include <unordered_map>
 #include <string>
 
@@ -13,9 +14,10 @@ class AuthManager : public QObject {
     Q_OBJECT
 
 private:
-    std::unordered_map<std::string, User*> users;
+    std::unordered_map<std::string, User*> sessions;
     QNetworkAccessManager* networkManager;
     QString serverBaseUrl;
+    QSettings settings;
 
 public:
     AuthManager(const QString& serverUrl);
@@ -27,6 +29,9 @@ public:
     
     bool isUserLoggedIn(user_id user_id) const;
     void clearExpiredSessions();
+    
+    AuthManager& operator+(User* user);
+    AuthManager& operator-(user_id user_id);
 
 signals:
     void loginSuccess(User* user);
@@ -44,6 +49,8 @@ private slots:
 private:
     User* parseUserFromJson(const QJsonObject& json);
     Contact parseContactFromJson(const QJsonObject& json);
+    void saveUsers();
+    void loadUsers();
 };
 
 #endif
