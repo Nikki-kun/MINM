@@ -204,10 +204,42 @@ public:
         : QWidget(parent), username(username) {
         setFixedSize(40, 40);
         setCursor(Qt::PointingHandCursor);
+        
+        deleteButton = new QPushButton(this);
+        deleteButton->setFixedSize(16, 16);
+        deleteButton->setStyleSheet(
+            "QPushButton {"
+            "    background: #ff4444;"
+            "    border: none;"
+            "    border-radius: 8px;"
+            "    color: white;"
+            "    font-size: 10px;"
+            "    font-weight: bold;"
+            "}"
+            "QPushButton:hover {"
+            "    background: #ff6666;"
+            "}"
+        );
+        deleteButton->setText("×");
+        deleteButton->move(24, 0);
+        deleteButton->hide();
+        
+        connect(deleteButton, &QPushButton::clicked, this, &QuickLoginCircle::onDeleteClicked);
+    }
+
+    void enterEvent(QEnterEvent* event) override {
+        deleteButton->show();
+        QWidget::enterEvent(event);
+    }
+    
+    void leaveEvent(QEvent* event) override {
+        deleteButton->hide();
+        QWidget::leaveEvent(event);
     }
 
 signals:
     void clicked(const QString& username);
+    void deleteRequested(const QString& username);
 
 protected:
     void paintEvent(QPaintEvent* event) override {
@@ -224,12 +256,30 @@ protected:
     }
     
     void mousePressEvent(QMouseEvent* event) override {
-        emit clicked(username);
+        if (event->button() == Qt::LeftButton) {
+            emit clicked(username);
+        }
         QWidget::mousePressEvent(event);
+    }
+
+private slots:
+    void onDeleteClicked() {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this, 
+            "Удаление пользователя",
+            QString("Удалить пользователя '%1' из быстрого доступа?").arg(username),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::No
+        );
+        
+        if (reply == QMessageBox::Yes) {
+            emit deleteRequested(username);
+        }
     }
 
 private:
     QString username;
+    QPushButton* deleteButton;
 };
 
 class LoginWindow : public QMainWindow {
@@ -283,6 +333,19 @@ public slots:
         } else {
             passwordEdit->setFocus();
         }
+    }
+    
+    void onQuickLoginDeleteRequested(const QString& username) {
+        QSettings settings;
+        QStringList users = settings.value("quick_login_users").toStringList();
+        users.removeAll(username);
+        settings.setValue("quick_login_users", users);
+        
+        settings.remove("user_password_" + username);
+        
+        updateQuickLoginCircles();
+        
+        qDebug() << "Пользователь" << username << "удален из быстрого доступа";
     }
 
 private:
@@ -450,6 +513,7 @@ private:
         for (const QString& username : users) {
             QuickLoginCircle* circle = new QuickLoginCircle(username);
             connect(circle, &QuickLoginCircle::clicked, this, &LoginWindow::onQuickLoginClicked);
+            connect(circle, &QuickLoginCircle::deleteRequested, this, &LoginWindow::onQuickLoginDeleteRequested);
             quickLoginContainer->layout()->addWidget(circle);
         }
     }
