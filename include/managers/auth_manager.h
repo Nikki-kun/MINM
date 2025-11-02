@@ -13,7 +13,7 @@ class AuthManager : public QObject {
     Q_OBJECT
 
 private:
-    std::unordered_map<std::string, User*> sessions;
+    std::unordered_map<std::string, User*> users;
     QNetworkAccessManager* networkManager;
     QString serverBaseUrl;
 
