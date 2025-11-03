@@ -7,14 +7,14 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSettings>
-#include <unordered_map>
-#include <string>
+#include <QHash>
+#include <QString>
 
 class AuthManager : public QObject {
     Q_OBJECT
 
 private:
-    std::unordered_map<std::string, User*> sessions;
+    QHash<QString, User*> sessions;
     QNetworkAccessManager* networkManager;
     QString serverBaseUrl;
     QSettings settings;
@@ -23,9 +23,9 @@ public:
     AuthManager(const QString& serverUrl);
     ~AuthManager();
     
-    void login(const std::string& username, const std::string& password);
+    void login(const QString& username, const QString& password);
     void logout(user_id user_id);
-    void registerUser(const std::string& username, const std::string& password);
+    void registerUser(const QString& username, const QString& password);
     
     bool isUserLoggedIn(user_id user_id) const;
     void clearExpiredSessions();

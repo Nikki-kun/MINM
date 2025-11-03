@@ -1,8 +1,8 @@
-// auth_manager.cpp
 #include "managers/auth_manager.h"
 #include <QNetworkRequest>
 #include <QJsonArray>
 #include <QDateTime>
+#include <QDebug>
 
 AuthManager::AuthManager(const QString& serverUrl) 
     : serverBaseUrl(serverUrl), settings("MINM", "AuthManager") {
@@ -16,19 +16,25 @@ AuthManager::AuthManager(const QString& serverUrl)
 
 AuthManager::~AuthManager() {
     for (auto& session : sessions) {
-        delete session.second;
+        delete session;
     }
     sessions.clear();
 }
 
-void AuthManager::login(const std::string& username, const std::string& password) {
+void AuthManager::login(const QString& username, const QString& password) {
+    if (username.isEmpty() || password.isEmpty()) {
+        qWarning() << "Попытка входа с пустыми данными";
+        emit loginFailed("Имя пользователя и пароль не могут быть пустыми");
+        return;
+    }
+    
     QUrl url(serverBaseUrl + "/auth/login");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     
     QJsonObject json;
-    json["username"] = QString::fromStdString(username);
-    json["password"] = QString::fromStdString(password);
+    json["username"] = username;
+    json["password"] = password;
     
     QJsonDocument doc(json);
     QByteArray data = doc.toJson();
@@ -42,40 +48,54 @@ void AuthManager::login(const std::string& username, const std::string& password
 }
 
 void AuthManager::logout(user_id user_id) {
-    std::string sessionToken;
-    for (const auto& session : sessions) {
-        if (session.second->getId() == user_id) {
-            sessionToken = session.first;
+    QString sessionToken;
+    for (auto it = sessions.begin(); it != sessions.end(); ++it) {
+        if (it.value()->getId() == user_id) {
+            sessionToken = it.key();
             break;
         }
     }
     
-    if (sessionToken.empty()) {
-        emit logoutFailed(user_id, "User not logged in");
+    if (sessionToken.isEmpty()) {
+        qWarning() << "Попытка выхода неавторизованного пользователя:" << user_id;
+        emit logoutFailed(user_id, "Пользователь не авторизован");
         return;
     }
     
     QUrl url(serverBaseUrl + "/auth/logout");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setRawHeader("Authorization", ("Bearer " + sessionToken).c_str());
+    request.setRawHeader("Authorization", ("Bearer " + sessionToken).toUtf8());
     
     disconnect(networkManager, &QNetworkAccessManager::finished,
                this, &AuthManager::handleLogoutReply);
     connect(networkManager, &QNetworkAccessManager::finished,
             this, &AuthManager::handleLogoutReply);
     
-    networkManager->post(request, QByteArray());
+    QNetworkReply* reply = networkManager->post(request, QByteArray());
+    reply->setProperty("user_id", QVariant::fromValue(user_id));
 }
 
-void AuthManager::registerUser(const std::string& username, const std::string& password) {
+void AuthManager::registerUser(const QString& username, const QString& password) {
+    if (!User::validateUsername(username)) {
+        qWarning() << "Попытка регистрации с невалидным именем пользователя:" << username;
+        emit registrationFailed("Недопустимое имя пользователя");
+        return;
+    }
+    
+    if (!User::validatePassword(password)) {
+        qWarning() << "Попытка регистрации с невалидным паролем";
+        emit registrationFailed("Недопустимый пароль");
+        return;
+    }
+    
     QUrl url(serverBaseUrl + "/auth/register");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     
     QJsonObject json;
-    json["username"] = QString::fromStdString(username);
-    json["password"] = QString::fromStdString(password);
+    json["username"] = username;
+    json["password"] = password;
     
     QJsonDocument doc(json);
     QByteArray data = doc.toJson();
@@ -92,20 +112,38 @@ void AuthManager::handleLoginReply(QNetworkReply* reply) {
     if (reply->error() == QNetworkReply::NoError) {
         QByteArray response = reply->readAll();
         QJsonDocument doc = QJsonDocument::fromJson(response);
+        
+        if (doc.isNull() || !doc.isObject()) {
+            qWarning() << "Невалидный JSON ответ при входе";
+            emit loginFailed("Ошибка сервера: невалидный ответ");
+            reply->deleteLater();
+            return;
+        }
+        
         QJsonObject json = doc.object();
         
         if (json["success"].toBool()) {
             User* user = parseUserFromJson(json["user"].toObject());
-            std::string token = json["token"].toString().toStdString();
+            QString token = json["token"].toString();
             
-            sessions[token] = user;
-            saveUsers();
-            emit loginSuccess(user);
+            if (user && !token.isEmpty()) {
+                sessions[token] = user;
+                saveUsers();
+                emit loginSuccess(user);
+            } else {
+                qWarning() << "Ошибка парсинга пользователя или токена";
+                emit loginFailed("Ошибка обработки данных пользователя");
+                delete user;
+            }
         } else {
-            emit loginFailed(json["error"].toString());
+            QString error = json["error"].toString("Неизвестная ошибка");
+            qWarning() << "Ошибка входа:" << error;
+            emit loginFailed(error);
         }
     } else {
-        emit loginFailed(reply->errorString());
+        QString error = QString("Ошибка сети: %1").arg(reply->errorString());
+        qWarning() << "Сетевая ошибка при входе:" << error;
+        emit loginFailed(error);
     }
     
     reply->deleteLater();
@@ -115,20 +153,38 @@ void AuthManager::handleRegistrationReply(QNetworkReply* reply) {
     if (reply->error() == QNetworkReply::NoError) {
         QByteArray response = reply->readAll();
         QJsonDocument doc = QJsonDocument::fromJson(response);
+        
+        if (doc.isNull() || !doc.isObject()) {
+            qWarning() << "Невалидный JSON ответ при регистрации";
+            emit registrationFailed("Ошибка сервера: невалидный ответ");
+            reply->deleteLater();
+            return;
+        }
+        
         QJsonObject json = doc.object();
         
         if (json["success"].toBool()) {
             User* user = parseUserFromJson(json["user"].toObject());
-            std::string token = json["token"].toString().toStdString();
+            QString token = json["token"].toString();
             
-            sessions[token] = user;
-            saveUsers();
-            emit registrationSuccess(user);
+            if (user && !token.isEmpty()) {
+                sessions[token] = user;
+                saveUsers();
+                emit registrationSuccess(user);
+            } else {
+                qWarning() << "Ошибка парсинга пользователя или токена при регистрации";
+                emit registrationFailed("Ошибка обработки данных пользователя");
+                delete user;
+            }
         } else {
-            emit registrationFailed(json["error"].toString());
+            QString error = json["error"].toString("Неизвестная ошибка");
+            qWarning() << "Ошибка регистрации:" << error;
+            emit registrationFailed(error);
         }
     } else {
-        emit registrationFailed(reply->errorString());
+        QString error = QString("Ошибка сети: %1").arg(reply->errorString());
+        qWarning() << "Сетевая ошибка при регистрации:" << error;
+        emit registrationFailed(error);
     }
     
     reply->deleteLater();
@@ -140,54 +196,79 @@ void AuthManager::handleLogoutReply(QNetworkReply* reply) {
     if (reply->error() == QNetworkReply::NoError) {
         QByteArray response = reply->readAll();
         QJsonDocument doc = QJsonDocument::fromJson(response);
-        QJsonObject json = doc.object();
         
-        if (json["success"].toBool()) {
-            std::string sessionToken;
-            for (auto it = sessions.begin(); it != sessions.end(); ++it) {
-                if (it->second->getId() == user_id) {
-                    sessionToken = it->first;
-                    delete it->second;
-                    sessions.erase(it);
-                    saveUsers();
-                    break;
+        if (!doc.isNull() && doc.isObject()) {
+            QJsonObject json = doc.object();
+            
+            if (json["success"].toBool()) {
+                QString sessionToken;
+                for (auto it = sessions.begin(); it != sessions.end(); ++it) {
+                    if (it.value()->getId() == user_id) {
+                        sessionToken = it.key();
+                        delete it.value();
+                        sessions.remove(sessionToken);
+                        saveUsers();
+                        break;
+                    }
                 }
+                emit logoutSuccess(user_id);
+            } else {
+                QString error = json["error"].toString("Неизвестная ошибка");
+                qWarning() << "Ошибка выхода:" << error;
+                emit logoutFailed(user_id, error);
             }
-            emit logoutSuccess(user_id);
         } else {
-            emit logoutFailed(user_id, json["error"].toString());
+            qWarning() << "Невалидный JSON ответ при выходе";
+            emit logoutFailed(user_id, "Ошибка сервера: невалидный ответ");
         }
     } else {
-        emit logoutFailed(user_id, reply->errorString());
+        QString error = QString("Ошибка сети: %1").arg(reply->errorString());
+        qWarning() << "Сетевая ошибка при выходе:" << error;
+        emit logoutFailed(user_id, error);
     }
     
     reply->deleteLater();
 }
 
 User* AuthManager::parseUserFromJson(const QJsonObject& json) {
+    if (json.isEmpty()) {
+        qWarning() << "Пустой JSON объект для парсинга пользователя";
+        return nullptr;
+    }
+    
     user_id id = json["id"].toVariant().toLongLong();
-    std::string username = json["username"].toString().toStdString();
-    std::string password = json["password"].toString().toStdString();
+    QString username = json["username"].toString();
+    QString password = json["password"].toString();
+    
+    if (id == 0 || username.isEmpty()) {
+        qWarning() << "Невалидные данные пользователя в JSON";
+        return nullptr;
+    }
     
     User* user = new User(id, username, password);
     user->setOnline(json["online"].toBool());
     
     qint64 lastSeenMs = json["lastSeen"].toVariant().toLongLong();
-    auto lastSeen = std::chrono::system_clock::time_point(
-        std::chrono::milliseconds(lastSeenMs));
+    QDateTime lastSeen = QDateTime::fromMSecsSinceEpoch(lastSeenMs);
     user->setLastSeen(lastSeen);
     
     QJsonArray contactsArray = json["contacts"].toArray();
-    std::vector<Contact> contacts;
+    QVector<Contact> contacts;
     for (const QJsonValue& contactValue : contactsArray) {
-        contacts.push_back(parseContactFromJson(contactValue.toObject()));
+        Contact contact = parseContactFromJson(contactValue.toObject());
+        if (contact.getId() != 0) {
+            contacts.push_back(contact);
+        }
     }
     user->setContacts(contacts);
     
     QJsonArray blockedArray = json["blockedUsers"].toArray();
-    std::vector<Contact> blockedUsers;
+    QVector<Contact> blockedUsers;
     for (const QJsonValue& blockedValue : blockedArray) {
-        blockedUsers.push_back(parseContactFromJson(blockedValue.toObject()));
+        Contact contact = parseContactFromJson(blockedValue.toObject());
+        if (contact.getId() != 0) {
+            blockedUsers.push_back(contact);
+        }
     }
     user->setBlockedUsers(blockedUsers);
     
@@ -195,21 +276,29 @@ User* AuthManager::parseUserFromJson(const QJsonObject& json) {
 }
 
 Contact AuthManager::parseContactFromJson(const QJsonObject& json) {
+    if (json.isEmpty()) {
+        return Contact(0, 0, 0, "", QDateTime::currentDateTime());
+    }
+    
     contact_id id = json["id"].toVariant().toLongLong();
     user_id ownerId = json["ownerId"].toVariant().toLongLong();
     user_id contactId = json["contactId"].toVariant().toLongLong();
-    std::string contactName = json["contactName"].toString().toStdString();
+    QString contactName = json["contactName"].toString();
     
     qint64 addedDateMs = json["addedDate"].toVariant().toLongLong();
-    auto addedDate = std::chrono::system_clock::time_point(
-        std::chrono::milliseconds(addedDateMs));
+    QDateTime addedDate = QDateTime::fromMSecsSinceEpoch(addedDateMs);
+    
+    if (id == 0 || ownerId == 0 || contactId == 0) {
+        qWarning() << "Невалидные данные контакта в JSON";
+        return Contact(0, 0, 0, "", QDateTime::currentDateTime());
+    }
     
     return Contact(id, ownerId, contactId, contactName, addedDate);
 }
 
 bool AuthManager::isUserLoggedIn(user_id user_id) const {
-    for (const auto& session : sessions) {
-        if (session.second->getId() == user_id) {
+    for (auto it = sessions.begin(); it != sessions.end(); ++it) {
+        if (it.value()->getId() == user_id) {
             return true;
         }
     }
@@ -217,13 +306,14 @@ bool AuthManager::isUserLoggedIn(user_id user_id) const {
 }
 
 void AuthManager::clearExpiredSessions() {
-    auto currentTime = std::chrono::system_clock::now();
+    QDateTime currentTime = QDateTime::currentDateTime();
     auto it = sessions.begin();
     while (it != sessions.end()) {
-        auto lastSeen = it->second->getLastSeen();
-        auto duration = std::chrono::duration_cast<std::chrono::hours>(currentTime - lastSeen);
-        if (duration.count() > 24) {
-            delete it->second;
+        QDateTime lastSeen = it.value()->getLastSeen();
+        qint64 hoursSinceLastSeen = lastSeen.secsTo(currentTime) / 3600;
+        if (hoursSinceLastSeen > 24) {
+            qDebug() << "Удаление просроченной сессии для пользователя:" << it.value()->getUserName();
+            delete it.value();
             it = sessions.erase(it);
         } else {
             ++it;
@@ -233,17 +323,21 @@ void AuthManager::clearExpiredSessions() {
 }
 
 AuthManager& AuthManager::operator+(User* user) {
-    std::string token = std::to_string(user->getId()) + "_" + std::to_string(QDateTime::currentMSecsSinceEpoch());
-    sessions[token] = user;
-    saveUsers();
+    if (user && user->isValid()) {
+        QString token = QString("%1_%2").arg(user->getId()).arg(QDateTime::currentMSecsSinceEpoch());
+        sessions[token] = user;
+        saveUsers();
+    } else {
+        qWarning() << "Попытка добавления невалидного пользователя";
+    }
     return *this;
 }
 
 AuthManager& AuthManager::operator-(user_id user_id) {
     auto it = sessions.begin();
     while (it != sessions.end()) {
-        if (it->second->getId() == user_id) {
-            delete it->second;
+        if (it.value()->getId() == user_id) {
+            delete it.value();
             it = sessions.erase(it);
             saveUsers();
             break;
@@ -257,16 +351,15 @@ AuthManager& AuthManager::operator-(user_id user_id) {
 void AuthManager::saveUsers() {
     settings.beginWriteArray("sessions");
     int index = 0;
-    for (const auto& session : sessions) {
+    for (auto it = sessions.begin(); it != sessions.end(); ++it) {
         settings.setArrayIndex(index);
-        settings.setValue("token", QString::fromStdString(session.first));
-        settings.setValue("user_id", QVariant::fromValue(session.second->getId()));
-        settings.setValue("username", QString::fromStdString(session.second->getUserName()));
-        settings.setValue("password", QString::fromStdString(session.second->getPassword()));
-        settings.setValue("online", session.second->isOnline());
+        settings.setValue("token", it.key());
+        settings.setValue("user_id", QVariant::fromValue(it.value()->getId()));
+        settings.setValue("username", it.value()->getUserName());
+        settings.setValue("password", it.value()->getPassword());
+        settings.setValue("online", it.value()->isOnline());
         
-        qint64 lastSeenMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-            session.second->getLastSeen().time_since_epoch()).count();
+        qint64 lastSeenMs = it.value()->getLastSeen().toMSecsSinceEpoch();
         settings.setValue("lastSeen", lastSeenMs);
         index++;
     }
@@ -277,17 +370,21 @@ void AuthManager::loadUsers() {
     int size = settings.beginReadArray("sessions");
     for (int i = 0; i < size; ++i) {
         settings.setArrayIndex(i);
-        std::string token = settings.value("token").toString().toStdString();
+        QString token = settings.value("token").toString();
         user_id id = settings.value("user_id").toLongLong();
-        std::string username = settings.value("username").toString().toStdString();
-        std::string password = settings.value("password").toString().toStdString();
+        QString username = settings.value("username").toString();
+        QString password = settings.value("password").toString();
+        
+        if (token.isEmpty() || id == 0 || username.isEmpty()) {
+            qWarning() << "Пропуск невалидной сохраненной сессии";
+            continue;
+        }
         
         User* user = new User(id, username, password);
         user->setOnline(settings.value("online").toBool());
         
         qint64 lastSeenMs = settings.value("lastSeen").toLongLong();
-        auto lastSeen = std::chrono::system_clock::time_point(
-            std::chrono::milliseconds(lastSeenMs));
+        QDateTime lastSeen = QDateTime::fromMSecsSinceEpoch(lastSeenMs);
         user->setLastSeen(lastSeen);
         
         sessions[token] = user;

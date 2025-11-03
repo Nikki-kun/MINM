@@ -1,20 +1,23 @@
 #include "core/contact.h"
+#include <QDebug>
 
 Contact::Contact(contact_id id, user_id ownerId, user_id contactId, 
-                 std::string contactName, std::chrono::system_clock::time_point addedDate)
+                 QString contactName, QDateTime addedDate)
     : id(id), ownerId(ownerId), contactId(contactId), 
       contactName(contactName), addedDate(addedDate) {
     
     if (!validateContactName(contactName)) {
-        throw std::invalid_argument("Имя контакта не может быть пустым или превышать " + std::to_string(MAX_CONTACT_NAME_LENGTH) + " символов");
+        qWarning() << "Имя контакта не может быть пустым или превышать" << MAX_CONTACT_NAME_LENGTH << "символов:" << contactName;
+        this->contactName = "InvalidContact";
     }
     if (ownerId == contactId) {
-        throw std::invalid_argument("Владелец не может быть своим же контактом");
+        qWarning() << "Владелец не может быть своим же контактом";
+        // Можно сгенерировать исключение или оставить как есть с предупреждением
     }
 }
 
-Contact::Contact(contact_id id, user_id ownerId, user_id contactId, std::string contactName)
-    : Contact(id, ownerId, contactId, contactName, std::chrono::system_clock::now()) {
+Contact::Contact(contact_id id, user_id ownerId, user_id contactId, QString contactName)
+    : Contact(id, ownerId, contactId, contactName, QDateTime::currentDateTime()) {
 }
 
 contact_id Contact::getId() const {
@@ -29,29 +32,31 @@ user_id Contact::getContactId() const {
     return contactId;
 }
 
-std::string Contact::getContactName() const {
+QString Contact::getContactName() const {
     return contactName;
 }
 
-std::chrono::system_clock::time_point Contact::getAddedDate() const {
+QDateTime Contact::getAddedDate() const {
     return addedDate;
 }
 
 void Contact::setContactId(user_id id) {
     if (id == ownerId) {
-        throw std::invalid_argument("Контакт не может быть тем же пользователем, что и владелец");
+        qWarning() << "Контакт не может быть тем же пользователем, что и владелец";
+        return;
     }
     contactId = id;
 }
 
-void Contact::setContactName(std::string name) {
+void Contact::setContactName(QString name) {
     if (!validateContactName(name)) {
-        throw std::invalid_argument("Имя контакта не может быть пустым или превышать " + std::to_string(MAX_CONTACT_NAME_LENGTH) + " символов");
+        qWarning() << "Имя контакта не может быть пустым или превышать" << MAX_CONTACT_NAME_LENGTH << "символов:" << name;
+        return;
     }
     contactName = name;
 }
 
-void Contact::setAddedDate(std::chrono::system_clock::time_point date) {
+void Contact::setAddedDate(QDateTime date) {
     addedDate = date;
 }
 
@@ -59,6 +64,6 @@ bool Contact::isValid() const {
     return validateContactName(contactName) && ownerId != contactId;
 }
 
-bool Contact::validateContactName(const std::string& contactName) {
-    return !contactName.empty() && contactName.length() <= MAX_CONTACT_NAME_LENGTH;
+bool Contact::validateContactName(const QString& contactName) {
+    return !contactName.isEmpty() && contactName.length() <= MAX_CONTACT_NAME_LENGTH;
 }

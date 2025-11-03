@@ -2,32 +2,34 @@
 #define CONTACT_H
 
 #include "types.h"
+#include <QString>
+#include <QDateTime>
 
 class Contact {
 private:
     contact_id id;
     user_id ownerId;
     user_id contactId;
-    std::string contactName;
-    std::chrono::system_clock::time_point addedDate;
+    QString contactName;
+    QDateTime addedDate;
 
 public:
-    Contact(contact_id id, user_id ownerId, user_id contactId, std::string contactName, std::chrono::system_clock::time_point addedDate);
-    Contact(contact_id id, user_id ownerId, user_id contactId, std::string contactName);
+    Contact(contact_id id, user_id ownerId, user_id contactId, QString contactName, QDateTime addedDate);
+    Contact(contact_id id, user_id ownerId, user_id contactId, QString contactName);
     ~Contact() = default;
 
     contact_id getId() const;
     user_id getOwnerId() const;
     user_id getContactId() const;
-    std::string getContactName() const;
-    std::chrono::system_clock::time_point getAddedDate() const;
+    QString getContactName() const;
+    QDateTime getAddedDate() const;
 
     void setContactId(user_id id);
-    void setContactName(std::string name);
-    void setAddedDate(std::chrono::system_clock::time_point date);
+    void setContactName(QString name);
+    void setAddedDate(QDateTime date);
 
     bool isValid() const;
-    static bool validateContactName(const std::string& contactName);
+    static bool validateContactName(const QString& contactName);
 };
 
 #endif

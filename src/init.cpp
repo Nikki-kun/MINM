@@ -119,10 +119,10 @@ private:
         QHBoxLayout *userLayout = new QHBoxLayout(userWidget);
         userLayout->setContentsMargins(15, 0, 15, 0);
         
-        AvatarWidget *avatar = new AvatarWidget(QString::fromStdString(currentUser->getUserName()));
+        AvatarWidget *avatar = new AvatarWidget(currentUser->getUserName());
         
         QVBoxLayout *userInfoLayout = new QVBoxLayout();
-        QLabel *userNameLabel = new QLabel(QString::fromStdString(currentUser->getUserName()));
+        QLabel *userNameLabel = new QLabel(currentUser->getUserName());
         userNameLabel->setStyleSheet("font-weight: bold; font-size: 14px;");
         QLabel *statusLabel = new QLabel(currentUser->isOnline() ? "В сети" : "Не в сети");
         statusLabel->setStyleSheet("color: #888; font-size: 12px;");
@@ -154,11 +154,11 @@ private:
         QVBoxLayout *contentLayout = new QVBoxLayout(contentWidget);
         contentLayout->setAlignment(Qt::AlignCenter);
         
-        AvatarWidget *bigAvatar = new AvatarWidget(QString::fromStdString(currentUser->getUserName()));
+        AvatarWidget *bigAvatar = new AvatarWidget(currentUser->getUserName());
         bigAvatar->setFixedSize(120, 120);
         
         QLabel *welcomeLabel = new QLabel(
-            QString("Добро пожаловать, %1!").arg(QString::fromStdString(currentUser->getUserName()))
+            QString("Добро пожаловать, %1!").arg(currentUser->getUserName())
         );
         welcomeLabel->setAlignment(Qt::AlignCenter);
         QFont welcomeFont("Arial", 24, QFont::Bold);
@@ -297,7 +297,7 @@ public slots:
         loginButton->setEnabled(true);
         loginButton->setText("Войти");
         
-        saveUserForQuickLogin(QString::fromStdString(user->getUserName()));
+        saveUserForQuickLogin(user->getUserName());
         
         MainAppWindow *mainWindow = new MainAppWindow(user);
         connect(mainWindow, &MainAppWindow::logoutRequested, this, [this]() {
@@ -317,8 +317,8 @@ public slots:
     
     void onRegistrationSuccess(User* user) {
         QMessageBox::information(this, "Успех", 
-            QString("Регистрация выполнена!\nДобро пожаловать, %1").arg(QString::fromStdString(user->getUserName())));
-        saveUserForQuickLogin(QString::fromStdString(user->getUserName()));
+            QString("Регистрация выполнена!\nДобро пожаловать, %1").arg(user->getUserName()));
+        saveUserForQuickLogin(user->getUserName());
         updateQuickLoginCircles();
     }
     
@@ -470,7 +470,7 @@ private:
             settings.setValue("user_password_" + login, password);
             
             if (g_authManager) {
-                g_authManager->login(login.toStdString(), password.toStdString());
+                g_authManager->login(login, password);
             }
         }
     }
@@ -483,7 +483,7 @@ private:
             QMessageBox::warning(this, "Ошибка", "Заполните все поля");
         } else {
             if (g_authManager) {
-                g_authManager->registerUser(login.toStdString(), password.toStdString());
+                g_authManager->registerUser(login, password);
             }
         }
     }

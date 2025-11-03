@@ -1,15 +1,18 @@
 #include "core/user.h"
+#include <QDebug>
 
-User::User(user_id id, std::string username, std::string password) 
+User::User(user_id id, QString username, QString password) 
     : id(id), username(username), password(password), online(false),
-      lastSeen(std::chrono::system_clock::now()) {
+      lastSeen(QDateTime::currentDateTime()) {
     
     if (!validateUsername(username)) {
-        throw std::invalid_argument("Имя пользователя не может быть пустым, содержать пробелы или превышать " + std::to_string(MAX_USERNAME_LENGTH) + " символов");
+        qWarning() << "Неверное имя пользователя:" << username;
+        this->username = "InvalidUser";
     }
     
     if (!validatePassword(password)) {
-        throw std::invalid_argument("Пароль должен содержать от 4 до " + std::to_string(MAX_PASSWORD_LENGTH) + " символов");
+        qWarning() << "Неверный пароль для пользователя:" << username;
+        this->password = "default123";
     }
 }
 
@@ -17,26 +20,30 @@ user_id User::getId() const {
     return id;
 }
 
-std::string User::getUserName() const {
+QString User::getUserName() const {
     return username;
 }
 
-void User::setUserName(std::string name) {
+bool User::setUserName(QString name) {
     if (!validateUsername(name)) {
-        throw std::invalid_argument("Имя пользователя не может быть пустым, содержать пробелы или превышать " + std::to_string(MAX_USERNAME_LENGTH) + " символов");
+        qWarning() << "Попытка установить недопустимое имя пользователя:" << name;
+        return false;
     }
     username = name;
+    return true;
 }
 
-std::string User::getPassword() const {
+QString User::getPassword() const {
     return password;
 }
 
-void User::setPassword(std::string password) {
+bool User::setPassword(QString password) {
     if (!validatePassword(password)) {
-        throw std::invalid_argument("Пароль должен содержать от 4 до " + std::to_string(MAX_PASSWORD_LENGTH) + " символов");
+        qWarning() << "Попытка установить недопустимый пароль";
+        return false;
     }
     this->password = password;
+    return true;
 }
 
 bool User::isOnline() const {
@@ -46,33 +53,37 @@ bool User::isOnline() const {
 void User::setOnline(bool status) {
     online = status;
     if (!status) {
-        lastSeen = std::chrono::system_clock::now();
+        lastSeen = QDateTime::currentDateTime();
     }
 }
 
-std::chrono::system_clock::time_point User::getLastSeen() const {
+QDateTime User::getLastSeen() const {
     return lastSeen;
 }
 
-void User::setLastSeen(std::chrono::system_clock::time_point time) {
+void User::setLastSeen(QDateTime time) {
     lastSeen = time;
 }
 
-const std::vector<Contact>& User::getContacts() const {
+const QVector<Contact>& User::getContacts() const {
     return contacts;
 }
 
-void User::setContacts(const std::vector<Contact>& contacts) {
+void User::setContacts(const QVector<Contact>& contacts) {
     this->contacts = contacts;
 }
 
-void User::addContact(const Contact& contact) {
+bool User::addContact(const Contact& contact) {
     if (!hasContact(contact.getId())) {
         contacts.push_back(contact);
+        return true;
     }
+    qDebug() << "Контакт уже существует:" << contact.getId();
+    return false;
 }
 
-void User::removeContact(user_id contactId) {
+bool User::removeContact(user_id contactId) {
+    int initialSize = contacts.size();
     contacts.erase(
         std::remove_if(contacts.begin(), contacts.end(),
             [contactId](const Contact& contact) {
@@ -80,6 +91,11 @@ void User::removeContact(user_id contactId) {
             }),
         contacts.end()
     );
+    bool removed = (contacts.size() < initialSize);
+    if (!removed) {
+        qDebug() << "Контакт не найден для удаления:" << contactId;
+    }
+    return removed;
 }
 
 bool User::hasContact(user_id contactId) const {
@@ -105,7 +121,7 @@ const Contact* User::findContact(user_id contactId) const {
     return it != contacts.end() ? &(*it) : nullptr;
 }
 
-size_t User::getContactsCount() const {
+int User::getContactsCount() const {
     return contacts.size();
 }
 
@@ -113,21 +129,25 @@ void User::clearContacts() {
     contacts.clear();
 }
 
-const std::vector<Contact>& User::getBlockedUsers() const {
+const QVector<Contact>& User::getBlockedUsers() const {
     return blockedUsers;
 }
 
-void User::setBlockedUsers(const std::vector<Contact>& blockedUsers) {
+void User::setBlockedUsers(const QVector<Contact>& blockedUsers) {
     this->blockedUsers = blockedUsers;
 }
 
-void User::blockUser(const Contact& user) {
+bool User::blockUser(const Contact& user) {
     if (!isUserBlocked(user.getId())) {
         blockedUsers.push_back(user);
+        return true;
     }
+    qDebug() << "Пользователь уже заблокирован:" << user.getId();
+    return false;
 }
 
-void User::unblockUser(user_id userId) {
+bool User::unblockUser(user_id userId) {
+    int initialSize = blockedUsers.size();
     blockedUsers.erase(
         std::remove_if(blockedUsers.begin(), blockedUsers.end(),
             [userId](const Contact& user) {
@@ -135,6 +155,11 @@ void User::unblockUser(user_id userId) {
             }),
         blockedUsers.end()
     );
+    bool unblocked = (blockedUsers.size() < initialSize);
+    if (!unblocked) {
+        qDebug() << "Пользователь не найден в блокировках:" << userId;
+    }
+    return unblocked;
 }
 
 bool User::isUserBlocked(user_id userId) const {
@@ -160,7 +185,7 @@ const Contact* User::findBlockedUser(user_id userId) const {
     return it != blockedUsers.end() ? &(*it) : nullptr;
 }
 
-size_t User::getBlockedUsersCount() const {
+int User::getBlockedUsersCount() const {
     return blockedUsers.size();
 }
 
@@ -168,14 +193,22 @@ void User::clearBlockedUsers() {
     blockedUsers.clear();
 }
 
-bool User::validateUsername(const std::string& username) {
-    if (username.empty() || username.length() > MAX_USERNAME_LENGTH) {
+bool User::validateUsername(const QString& username) {
+    if (username.isEmpty() || username.length() > MAX_USERNAME_LENGTH) {
         return false;
     }
     
-    return username.find(' ') == std::string::npos;
+    return !username.contains(' ');
 }
 
-bool User::validatePassword(const std::string& password) {
+bool User::validatePassword(const QString& password) {
     return password.length() >= 4 && password.length() <= MAX_PASSWORD_LENGTH;
+}
+
+QString User::getLastSeenString() const {
+    return lastSeen.toString("dd.MM.yyyy HH:mm");
+}
+
+bool User::isValid() const {
+    return validateUsername(username) && validatePassword(password);
 }
