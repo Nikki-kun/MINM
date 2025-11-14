@@ -1,4 +1,3 @@
-classDiagram
 direction TB
 
 class User {
@@ -55,27 +54,27 @@ class Contact {
     +validateContactName(std::string) bool
 }
 
-class Message {
+class Message~ContentType~ {
     -message_id id
     -user_id sender_id
     -user_id receiver_id
-    -std::string content
+    -ContentType content
     -std::chrono::system_clock::time_point timestamp
     -message_status status
-    +Message(message_id, user_id, user_id, std::string, std::chrono::system_clock::time_point)
-    +Message(message_id, user_id, user_id, std::string)
+    +Message(message_id, user_id, user_id, ContentType, std::chrono::system_clock::time_point)
+    +Message(message_id, user_id, user_id, ContentType)
     +~Message()
     +getId() message_id
     +getSenderId() user_id
     +getReceiverId() user_id
-    +getContent() std::string
-    +setContent(std::string)
+    +getContent() ContentType
+    +setContent(ContentType)
     +getTimestamp() std::chrono::system_clock::time_point
     +setTimestamp(std::chrono::system_clock::time_point)
     +getStatus() message_status
     +setStatus(message_status)
     +isValid() bool
-    +validateContent(std::string) bool
+    +validateContent(const ContentType&) bool
 }
 
 class Chat {
@@ -144,26 +143,26 @@ class ContactManager {
 }
 
 class MessageManager {
-    -std::unordered_map~message_id, Message*~ messages
-    -std::unordered_map~user_id, std::vector~Message*~~ undelivered_messages
+    -std::unordered_map~message_id, Message~std::string~*~ messages
+    -std::unordered_map~user_id, std::vector~Message~std::string~*~~ undelivered_messages
     +MessageManager()
     +~MessageManager()
-    +sendMessage(user_id, user_id, std::string) Message*
-    +getMessages(user_id, user_id) std::vector~Message*~
+    +sendMessage(user_id, user_id, std::string) Message~std::string~*
+    +getMessages(user_id, user_id) std::vector~Message~std::string~*~
     +updateMessageStatus(message_id, message_status) void
-    +getUndeliveredMessages(user_id) std::vector~Message*~
+    +getUndeliveredMessages(user_id) std::vector~Message~std::string~*~
     +markMessagesAsDelivered(user_id) void
-    +operator+(Message*) MessageManager&
-    +operator-(Message*) MessageManager&
-    +operator+(std::vector~Message*~&) MessageManager&
-    +operator-(std::vector~Message*~&) MessageManager&
+    +operator+(Message~std::string~*) MessageManager&
+    +operator-(Message~std::string~*) MessageManager&
+    +operator+(std::vector~Message~std::string~*~&) MessageManager&
+    +operator-(std::vector~Message~std::string~*~&) MessageManager&
 }
 
 class NotificationManager {
     -std::unordered_map~user_id, std::vector~User*~~ observers
     +NotificationManager()
     +~NotificationManager()
-    +notifyNewMessage(user_id, Message*) void
+    +notifyNewMessage(user_id, Message~std::string~*) void
     +notifyContactOnline(user_id, user_id) void
     +addObserver(user_id, User*) void
     +removeObserver(user_id, User*) void
@@ -174,13 +173,13 @@ class NotificationManager {
 }
 
 User "1" -- "*" Contact : has
-Chat "1" -- "*" Message : contains
-Message "1" -- "1" User : sender
-Message "1" -- "1" User : receiver
+Chat "1" -- "*" Message~std::string~ : contains
+Message~std::string~ "1" -- "1" User : sender
+Message~std::string~ "1" -- "1" User : receiver
 AuthManager --> User : manages
 ContactManager --> Contact : manages
 ContactManager --> User : references
-MessageManager --> Message : manages
+MessageManager --> Message~std::string~ : manages
 MessageManager --> User : references
 NotificationManager ..> MessageManager : observes
 NotificationManager ..> User : notifies

@@ -1,7 +1,8 @@
 #include "core/message.h"
 
-Message::Message(message_id id, user_id sender_id, user_id receiver_id, 
-                 std::string content, std::chrono::system_clock::time_point timestamp)
+template<typename ContentType>
+Message<ContentType>::Message(message_id id, user_id sender_id, user_id receiver_id, 
+                 ContentType content, std::chrono::system_clock::time_point timestamp)
     : id(id), sender_id(sender_id), receiver_id(receiver_id), 
       content(content), timestamp(timestamp), status(message_status::SENT) {
     
@@ -14,27 +15,33 @@ Message::Message(message_id id, user_id sender_id, user_id receiver_id,
     }
 }
 
-Message::Message(message_id id, user_id sender_id, user_id receiver_id, std::string content)
+template<typename ContentType>
+Message<ContentType>::Message(message_id id, user_id sender_id, user_id receiver_id, ContentType content)
     : Message(id, sender_id, receiver_id, content, std::chrono::system_clock::now()) {
 }
 
-message_id Message::getId() const {
+template<typename ContentType>
+message_id Message<ContentType>::getId() const {
     return id;
 }
 
-user_id Message::getSenderId() const {
+template<typename ContentType>
+user_id Message<ContentType>::getSenderId() const {
     return sender_id;
 }
 
-user_id Message::getReceiverId() const {
+template<typename ContentType>
+user_id Message<ContentType>::getReceiverId() const {
     return receiver_id;
 }
 
-std::string Message::getContent() const {
+template<typename ContentType>
+ContentType Message<ContentType>::getContent() const {
     return content;
 }
 
-void Message::setContent(std::string content) {
+template<typename ContentType>
+void Message<ContentType>::setContent(ContentType content) {
     if (!validateContent(content)) {
         throw std::invalid_argument("Сообщение не может быть пустым или превышать " + 
                                    std::to_string(MAX_MESSAGE_LENGTH) + " символов");
@@ -42,26 +49,32 @@ void Message::setContent(std::string content) {
     this->content = content;
 }
 
-std::chrono::system_clock::time_point Message::getTimestamp() const {
+template<typename ContentType>
+std::chrono::system_clock::time_point Message<ContentType>::getTimestamp() const {
     return timestamp;
 }
 
-void Message::setTimestamp(std::chrono::system_clock::time_point timestamp) {
+template<typename ContentType>
+void Message<ContentType>::setTimestamp(std::chrono::system_clock::time_point timestamp) {
     this->timestamp = timestamp;
 }
 
-message_status Message::getStatus() const {
+template<typename ContentType>
+message_status Message<ContentType>::getStatus() const {
     return status;
 }
 
-void Message::setStatus(message_status status) {
+template<typename ContentType>
+void Message<ContentType>::setStatus(message_status status) {
     this->status = status;
 }
 
-bool Message::isValid() const {
+template<typename ContentType>
+bool Message<ContentType>::isValid() const {
     return validateContent(content) && sender_id != receiver_id;
 }
 
-bool Message::validateContent(const std::string& content) {
+template<typename ContentType>
+bool Message<ContentType>::validateContent(const ContentType& content) {
     return !content.empty() && content.length() <= MAX_MESSAGE_LENGTH;
 }
