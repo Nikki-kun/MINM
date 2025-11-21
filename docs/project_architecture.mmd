@@ -32,6 +32,10 @@ class User {
     +isUserBlocked(user_id) bool
     +validateUsername(std::string) bool
     +validatePassword(std::string) bool
+    +operator+(Contact&) User&
+    +operator-(Contact&) User&
+    +operator+(std::vector~Contact~&) User&
+    +operator-(std::vector~Contact~&) User&
 }
 
 class Contact {
@@ -53,6 +57,8 @@ class Contact {
     +setAddedDate(std::chrono::system_clock::time_point)
     +isValid() bool
     +validateContactName(std::string) bool
+    +operator==(const Contact&) bool
+    +operator!=(const Contact&) bool
 }
 
 class Message~ContentType~ {
@@ -76,6 +82,8 @@ class Message~ContentType~ {
     +setStatus(message_status)
     +isValid() bool
     +validateContent(const ContentType&) bool
+    +operator==(const Message~ContentType~&) bool
+    +operator!=(const Message~ContentType~&) bool
 }
 
 class Chat {
@@ -103,6 +111,10 @@ class Chat {
     +getCreatedDate() std::chrono::system_clock::time_point
     +setCreatedDate(std::chrono::system_clock::time_point)
     +isValid() bool
+    +operator+(user_id) Chat&
+    +operator-(user_id) Chat&
+    +operator+(message_id) Chat&
+    +operator-(message_id) Chat&
 }
 
 class AuthManager {
@@ -127,6 +139,8 @@ class AuthManager {
     +registrationFailed(const QString& error)$
     +logoutSuccess(user_id user_id)$
     +logoutFailed(user_id user_id, const QString& error)$
+    +operator+(User*) AuthManager&
+    +operator-(User*) AuthManager&
 }
 
 class ContactManager {

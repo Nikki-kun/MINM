@@ -32,6 +32,21 @@ void Chat::setParticipants(const std::vector<user_id>& participants) {
     this->participants = participants;
 }
 
+Chat& Chat::operator+(user_id participant) {
+    if (!hasParticipant(participant)) {
+        participants.push_back(participant);
+    }
+    return *this;
+}
+
+Chat& Chat::operator-(user_id participant) {
+    participants.erase(
+        std::remove(participants.begin(), participants.end(), participant),
+        participants.end()
+    );
+    return *this;
+}
+
 void Chat::addParticipant(user_id participant) {
     if (!hasParticipant(participant)) {
         participants.push_back(participant);

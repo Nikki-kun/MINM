@@ -1,3 +1,4 @@
+// chat.h
 #ifndef CHAT_H
 #define CHAT_H
 
@@ -21,6 +22,8 @@ public:
     
     const std::vector<user_id>& getParticipants() const;
     void setParticipants(const std::vector<user_id>& participants);
+    Chat& operator+(user_id participant);
+    Chat& operator-(user_id participant);
     void addParticipant(user_id participant);
     void removeParticipant(user_id participant);
     bool hasParticipant(user_id participant) const;
