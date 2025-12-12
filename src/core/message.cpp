@@ -2,13 +2,13 @@
 #include <mutex>
 
 template<typename ContentType>
-Message<ContentType>::Message(message_id id, user_id sender_id, user_id receiver_id, 
+Message<ContentType>::Message(message_id id, user_id sender_id, chat_id receiver_id, 
                               ContentType content, std::chrono::system_clock::time_point timestamp)
     : id(id), sender_id(sender_id), receiver_id(receiver_id), 
       content(content), timestamp(timestamp), status(SENT) {}
 
 template<typename ContentType>
-Message<ContentType>::Message(message_id id, user_id sender_id, user_id receiver_id, 
+Message<ContentType>::Message(message_id id, user_id sender_id, chat_id receiver_id, 
                               ContentType content)
     : id(id), sender_id(sender_id), receiver_id(receiver_id), 
       content(content), timestamp(std::chrono::system_clock::now()), status(SENT) {}
