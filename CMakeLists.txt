@@ -11,6 +11,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Widgets
     Gui
     Network
+    HttpServer
 )
 
 set(CMAKE_AUTOMOC ON)
@@ -27,6 +28,7 @@ target_link_libraries(${PROJECT_NAME}
     Qt6::Widgets
     Qt6::Gui
     Qt6::Network
+    Qt6::HttpServer
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE include)
