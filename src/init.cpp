@@ -5,12 +5,12 @@
 #include <QJsonArray>
 #include <QDateTime>
 #include <QDebug>
-
+#include <QTimer>
 #include "core/message.h"
-#include "core/chat.h"
+#include "core/сhat.h"
 #include "core/contact.h"
 #include "core/user.h"
-#include "message_manager.h"
+#include "managers/message_manager.h"
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
