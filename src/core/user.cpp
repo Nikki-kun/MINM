@@ -1,4 +1,4 @@
-#include "user.h"
+#include "core/user.h"
 #include <mutex>
 
 User::User(user_id id, QString username, QString password)

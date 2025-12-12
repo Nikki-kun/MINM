@@ -1,4 +1,4 @@
-#include "contact.h"
+#include "core/contact.h"
 
 Contact::Contact(contact_id id, user_id ownerId, user_id contactId, 
                  QString contactName, QDateTime addedDate)

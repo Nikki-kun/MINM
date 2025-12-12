@@ -1,4 +1,4 @@
-#include "message.h"
+#include "core/message.h"
 #include <mutex>
 
 template<typename ContentType>
