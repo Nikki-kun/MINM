@@ -3,62 +3,37 @@ direction TB
 
 class User {
     -user_id id
-    -std::string username
-    -std::string password
+    -QString username
+    -QString password
     -bool online
-    -std::chrono::system_clock::time_point lastSeen
-    -std::vector~Contact~ contacts
-    -std::vector~Contact~ blockedUsers
-    +User(user_id, std::string, std::string)
+    -QDateTime lastSeen
+    -QVector~Contact~ contacts
+    -QVector~Contact~ blockedUsers
+    -mutable std::mutex contacts_mutex
+    -mutable std::mutex blocked_mutex
+    -mutable std::mutex status_mutex
+    +User(user_id id, QString username, QString password)
     +~User()
-    +getId() user_id
-    +getUserName() std::string
-    +setUserName(std::string)
-    +getPassword() std::string
-    +setPassword(std::string)
-    +isOnline() bool
-    +setOnline(bool)
-    +getLastSeen() std::chrono::system_clock::time_point
-    +setLastSeen(std::chrono::system_clock::time_point)
-    +getContacts() std::vector~Contact~
-    +setContacts(std::vector~Contact~)
-    +addContact(Contact)
-    +removeContact(user_id)
-    +hasContact(user_id) bool
-    +getBlockedUsers() std::vector~Contact~
-    +setBlockedUsers(std::vector~Contact~)
-    +blockUser(Contact)
-    +unblockUser(user_id)
-    +isUserBlocked(user_id) bool
-    +validateUsername(std::string) bool
-    +validatePassword(std::string) bool
-    +operator+(Contact&) User&
-    +operator-(Contact&) User&
-    +operator+(std::vector~Contact~&) User&
-    +operator-(std::vector~Contact~&) User&
+    +addContact(const Contact& contact) void
+    +removeContact(contact_id contactId) void
+    +getContacts() QVector~Contact~
+    +blockUser(const Contact& user) void
+    +unblockUser(user_id userId) void
+    +isBlocked(user_id userId) bool
+    +setOnline(bool isOnline) void
+    +getOnline() bool
+    +getLastSeen() QDateTime
 }
 
 class Contact {
     -contact_id id
     -user_id ownerId
     -user_id contactId
-    -std::string contactName
-    -std::chrono::system_clock::time_point addedDate
-    +Contact(contact_id, user_id, user_id, std::string, std::chrono::system_clock::time_point)
-    +Contact(contact_id, user_id, user_id, std::string)
+    -QString contactName
+    -QDateTime addedDate
+    +Contact(contact_id id, user_id ownerId, user_id contactId, QString contactName, QDateTime addedDate)
+    +Contact(contact_id id, user_id ownerId, user_id contactId, QString contactName)
     +~Contact()
-    +getId() contact_id
-    +getOwnerId() user_id
-    +getContactId() user_id
-    +setContactId(user_id)
-    +getContactName() std::string
-    +setContactName(std::string)
-    +getAddedDate() std::chrono::system_clock::time_point
-    +setAddedDate(std::chrono::system_clock::time_point)
-    +isValid() bool
-    +validateContactName(std::string) bool
-    +operator==(const Contact&) bool
-    +operator!=(const Contact&) bool
 }
 
 class Message~ContentType~ {
@@ -68,22 +43,15 @@ class Message~ContentType~ {
     -ContentType content
     -std::chrono::system_clock::time_point timestamp
     -message_status status
-    +Message(message_id, user_id, user_id, ContentType, std::chrono::system_clock::time_point)
-    +Message(message_id, user_id, user_id, ContentType)
+    -mutable std::mutex status_mutex
+    -mutable std::mutex content_mutex
+    +Message(message_id id, user_id sender_id, user_id receiver_id, ContentType content, std::chrono::system_clock::time_point timestamp)
+    +Message(message_id id, user_id sender_id, user_id receiver_id, ContentType content)
     +~Message()
-    +getId() message_id
-    +getSenderId() user_id
-    +getReceiverId() user_id
-    +getContent() ContentType
-    +setContent(ContentType)
-    +getTimestamp() std::chrono::system_clock::time_point
-    +setTimestamp(std::chrono::system_clock::time_point)
+    +setStatus(message_status newStatus) void
     +getStatus() message_status
-    +setStatus(message_status)
-    +isValid() bool
-    +validateContent(const ContentType&) bool
-    +operator==(const Message~ContentType~&) bool
-    +operator!=(const Message~ContentType~&) bool
+    +getContent() ContentType
+    +setContent(const ContentType& newContent) void
 }
 
 class Chat {
@@ -92,29 +60,20 @@ class Chat {
     -std::vector~user_id~ participants
     -std::vector~message_id~ messages
     -std::chrono::system_clock::time_point created_date
-    +Chat(chat_id, chat_type, std::vector~user_id~, std::vector~message_id~, std::chrono::system_clock::time_point)
-    +Chat(chat_id, chat_type, std::vector~user_id~)
+    -mutable std::shared_mutex participants_mutex
+    -mutable std::shared_mutex messages_mutex
+    +Chat(chat_id id, chat_type type, const std::vector~user_id~& participants, const std::vector~message_id~& messages, std::chrono::system_clock::time_point created_date)
+    +Chat(chat_id id, chat_type type, const std::vector~user_id~& participants)
     +~Chat()
-    +getId() chat_id
-    +getType() chat_type
-    +setType(chat_type)
-    +getParticipants() std::vector~user_id~
-    +setParticipants(std::vector~user_id~)
-    +addParticipant(user_id)
-    +removeParticipant(user_id)
-    +hasParticipant(user_id) bool
+    +addParticipant(user_id participant) void
+    +removeParticipant(user_id participant) void
+    +hasParticipant(user_id participant) bool
+    +addMessage(message_id msg_id) void
+    +removeMessage(message_id msg_id) void
     +getMessages() std::vector~message_id~
-    +setMessages(std::vector~message_id~)
-    +addMessage(message_id)
-    +removeMessage(message_id)
-    +hasMessage(message_id) bool
-    +getCreatedDate() std::chrono::system_clock::time_point
-    +setCreatedDate(std::chrono::system_clock::time_point)
-    +isValid() bool
-    +operator+(user_id) Chat&
-    +operator-(user_id) Chat&
-    +operator+(message_id) Chat&
-    +operator-(message_id) Chat&
+    +getParticipants() std::vector~user_id~
+    +operator+(user_id participant) Chat&
+    +operator-(user_id participant) Chat&
 }
 
 class AuthManager {

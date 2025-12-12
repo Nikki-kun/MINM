@@ -1,106 +1,81 @@
-#include "core/сhat.h"
+#include "chat.h"
+#include <algorithm>
+#include <mutex>
+#include <shared_mutex>
 
 Chat::Chat(chat_id id, chat_type type, const std::vector<user_id>& participants, 
-           const std::vector<message_id>& messages, std::chrono::system_clock::time_point created_date)
-    : id(id), type(type), participants(participants), messages(messages), created_date(created_date) {
-    
-    if (participants.empty()) {
-        throw std::invalid_argument("Чат должен содержать хотя бы одного участника");
-    }
-}
+           const std::vector<message_id>& messages, 
+           std::chrono::system_clock::time_point created_date)
+    : id(id), type(type), participants(participants), 
+      messages(messages), created_date(created_date) {}
 
 Chat::Chat(chat_id id, chat_type type, const std::vector<user_id>& participants)
-    : Chat(id, type, participants, std::vector<message_id>(), std::chrono::system_clock::now()) {
-}
-
-chat_id Chat::getId() const {
-    return id;
-}
-
-chat_type Chat::getType() const {
-    return type;
-}
-
-const std::vector<user_id>& Chat::getParticipants() const {
-    return participants;
-}
-
-void Chat::setParticipants(const std::vector<user_id>& participants) {
-    if (participants.empty()) {
-        throw std::invalid_argument("Чат должен содержать хотя бы одного участника");
-    }
-    this->participants = participants;
-}
+    : id(id), type(type), participants(participants), 
+      created_date(std::chrono::system_clock::now()) {}
 
 Chat& Chat::operator+(user_id participant) {
-    if (!hasParticipant(participant)) {
+    std::unique_lock<std::shared_mutex> lock(participants_mutex);
+    
+    if (std::find(participants.begin(), participants.end(), participant) == participants.end()) {
         participants.push_back(participant);
     }
+    
     return *this;
 }
 
 Chat& Chat::operator-(user_id participant) {
-    participants.erase(
-        std::remove(participants.begin(), participants.end(), participant),
-        participants.end()
-    );
+    std::unique_lock<std::shared_mutex> lock(participants_mutex);
+    
+    auto it = std::find(participants.begin(), participants.end(), participant);
+    if (it != participants.end()) {
+        participants.erase(it);
+    }
+    
     return *this;
 }
 
 void Chat::addParticipant(user_id participant) {
-    if (!hasParticipant(participant)) {
+    std::unique_lock<std::shared_mutex> lock(participants_mutex);
+    
+    if (std::find(participants.begin(), participants.end(), participant) == participants.end()) {
         participants.push_back(participant);
     }
 }
 
 void Chat::removeParticipant(user_id participant) {
-    participants.erase(
-        std::remove(participants.begin(), participants.end(), participant),
-        participants.end()
-    );
-}
-
-bool Chat::hasParticipant(user_id participant) const {
-    return std::find(participants.begin(), participants.end(), participant) != participants.end();
-}
-
-size_t Chat::getParticipantsCount() const {
-    return participants.size();
-}
-
-const std::vector<message_id>& Chat::getMessages() const {
-    return messages;
-}
-
-void Chat::setMessages(const std::vector<message_id>& messages) {
-    this->messages = messages;
-}
-
-void Chat::addMessage(message_id message) {
-    if (!hasMessage(message)) {
-        messages.push_back(message);
+    std::unique_lock<std::shared_mutex> lock(participants_mutex);
+    
+    auto it = std::find(participants.begin(), participants.end(), participant);
+    if (it != participants.end()) {
+        participants.erase(it);
     }
 }
 
-void Chat::removeMessage(message_id message) {
-    messages.erase(
-        std::remove(messages.begin(), messages.end(), message),
-        messages.end()
-    );
+bool Chat::hasParticipant(user_id participant) const {
+    std::shared_lock<std::shared_mutex> lock(participants_mutex);
+    return std::find(participants.begin(), participants.end(), participant) != participants.end();
 }
 
-bool Chat::hasMessage(message_id message) const {
-    return std::find(messages.begin(), messages.end(), message) != messages.end();
+void Chat::addMessage(message_id msg_id) {
+    std::unique_lock<std::shared_mutex> lock(messages_mutex);
+    messages.push_back(msg_id);
 }
 
-size_t Chat::getMessagesCount() const {
-    return messages.size();
+void Chat::removeMessage(message_id msg_id) {
+    std::unique_lock<std::shared_mutex> lock(messages_mutex);
+    
+    auto it = std::find(messages.begin(), messages.end(), msg_id);
+    if (it != messages.end()) {
+        messages.erase(it);
+    }
 }
 
-std::chrono::system_clock::time_point Chat::getCreatedDate() const {
-    return created_date;
+std::vector<message_id> Chat::getMessages() const {
+    std::shared_lock<std::shared_mutex> lock(messages_mutex);
+    return messages;
 }
 
-bool Chat::isValid() const {
-    return !participants.empty();
+std::vector<user_id> Chat::getParticipants() const {
+    std::shared_lock<std::shared_mutex> lock(participants_mutex);
+    return participants;
 }
