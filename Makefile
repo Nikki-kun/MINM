@@ -17,6 +17,7 @@ install:
 		build-essential \
 		cmake \
 		qt6-base-dev \
+		qt6-httpserver-dev \
 		qt6-tools-dev \
 		qt6-l10n-tools \
 		libgl1-mesa-dev \
