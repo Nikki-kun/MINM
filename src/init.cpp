@@ -42,28 +42,22 @@ int main(int argc, char *argv[])
     
     // Подключаем обработчики сигналов
     QObject::connect(&manager, &MessageManager::contactAdded,
-                     [](const Contact& contact) {
-                         std::cout << "[Contact Added] " 
-                                   << contact.contactName.toStdString() 
-                                   << " (ID: " << contact.id << ")" << std::endl;
-                     });
-    
-    QObject::connect(&manager, &MessageManager::chatAdded,
-                     [](std::shared_ptr<Chat> chat) {
-                         std::cout << "[Chat Created] ID: " 
-                                   << chat->id 
-                                   << " (Participants: " << chat->getParticipants().size() 
-                                   << ")" << std::endl;
-                     });
-    
-    QObject::connect(&manager, &MessageManager::messageAdded,
-                     [](std::shared_ptr<Message<std::string>> message) {
-                         std::cout << "[Message Sent] From: " 
-                                   << message->sender_id 
-                                   << " To Chat: " << message->receiver_id 
-                                   << " Content: " << message->getContent().substr(0, 50) 
-                                   << "..." << std::endl;
-                     });
+                 [](const Contact& contact) {
+                     qDebug() << "[Contact Added Thread:" << QThread::currentThread() 
+                              << "]" << contact.contactName;
+                 });
+
+QObject::connect(&manager, &MessageManager::chatAdded,
+                 [](std::shared_ptr<Chat> chat) {
+                     qDebug() << "[Chat Created Thread:" << QThread::currentThread() 
+                              << "] ID:" << chat->id;
+                 });
+
+QObject::connect(&manager, &MessageManager::messageAdded,
+                 [](std::shared_ptr<Message<std::string>> message) {
+                     qDebug() << "[Message Sent Thread:" << QThread::currentThread() 
+                              << "] From:" << message->sender_id;
+                 });
     
     QObject::connect(&manager, &MessageManager::requestProcessed,
                      [](const QString& method, const QString& path, bool success) {

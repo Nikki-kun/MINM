@@ -1,51 +1,61 @@
-#ifndef HTTP_SERVER_H
-#define HTTP_SERVER_H
+#ifndef HTTPSERVER_H
+#define HTTPSERVER_H
 
-#include <QObject>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QObject>
 #include <QMap>
-#include <QJsonObject>
-#include <QJsonDocument>
+#include <QByteArray>
+#include <QThread>
+#include <memory>
 #include "managers/message_manager.h"
 
-class HttpServer : public QObject {
+// Предварительное объявление
+class RequestProcessor;
+
+class HttpServer : public QObject
+{
     Q_OBJECT
 
 public:
     explicit HttpServer(MessageManager& manager, QObject* parent = nullptr);
+    ~HttpServer();
+
     bool start(quint16 port = 8080);
-    
-signals:
-    void requestReceived(const QString& method, const QString& path, const QJsonObject& data);
-    
+
 private slots:
     void onNewConnection();
     void onReadyRead();
-    void onDisconnected();
-    
+
 private:
-    QTcpServer m_server;
-    MessageManager& m_manager;
-    
     struct ClientData {
         QByteArray buffer;
-        QString method;
-        QString path;
-        QMap<QString, QString> headers;
+        qintptr socketDescriptor;  // Сохраняем дескриптор сокета
+        
+        // Конструктор для инициализации
+        ClientData() : socketDescriptor(0) {}
+        ClientData(qintptr descriptor) : socketDescriptor(descriptor) {}
     };
-    
-    QMap<QTcpSocket*, ClientData> m_clients;
-    
-    void processHttpRequest(QTcpSocket* socket, const QByteArray& request);
-    QJsonObject parseJsonBody(const QByteArray& body);
-    void sendHttpResponse(QTcpSocket* socket, int statusCode, 
-                         const QString& statusText, 
-                         const QJsonObject& jsonData);
-    void sendHttpResponse(QTcpSocket* socket, int statusCode, 
+
+    void sendHttpResponse(qintptr socketDescriptor, int statusCode, 
                          const QString& statusText, 
                          const QString& contentType, 
                          const QByteArray& body);
+    void sendHttpResponse(qintptr socketDescriptor, int statusCode, 
+                         const QString& statusText, 
+                         const QJsonObject& jsonData);
+    
+    // Приватные члены для многопоточности
+    RequestProcessor* m_requestProcessor;
+    QThread* m_processorThread;
+    MessageManager& m_manager;
+    
+    QTcpServer m_server;
+    QMap<qintptr, ClientData> m_clients;  // Используем дескриптор как ключ
+    QMap<qintptr, QTcpSocket*> m_sockets;  // Отдельно храним сокеты
 };
 
-#endif
+// Регистрируем qintptr как метатип
+Q_DECLARE_METATYPE(qintptr)
+
+#endif // HTTPSERVER_H
