@@ -1,33 +1,47 @@
+// message_manager.h
 #ifndef MESSAGE_MANAGER_H
 #define MESSAGE_MANAGER_H
 
 #include <QObject>
 #include <QVector>
-#include <QString>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <memory>
-#include <functional>
-#include "../core/message.h"
-#include "../core/сhat.h"
-#include "../core/contact.h"
-#include "../core/user.h"
+#include <QJsonObject>   // ДОБАВИТЬ
+#include <QJsonArray>    // ДОБАВИТЬ
+#include "core/contact.h"
+#include "core/сhat.h"
+#include "core/message.h"
 
-class MessageManager : public QObject {
+class MessageManager : public QObject
+{
     Q_OBJECT
 
 public:
     MessageManager(QVector<Contact>& contacts,
-                   QVector<std::shared_ptr<Chat>>& chats,
-                   QVector<std::shared_ptr<Message<std::string>>>& messages,
-                   QObject* parent = nullptr);
-
+                  QVector<std::shared_ptr<Chat>>& chats,
+                  QVector<std::shared_ptr<Message<std::string>>>& messages,
+                  QObject* parent = nullptr);
+    
     QJsonObject handleRequest(const QString& method, const QString& path, const QJsonObject& data);
+    
+    // Методы для управления данными
+    bool addContact(const QJsonObject& data);
+    bool removeContact(contact_id id);
+    bool addChat(const QJsonObject& data);
+    bool removeChat(chat_id id);
+    bool addMessage(const QJsonObject& data);
+    bool removeMessage(message_id id);
+    
+    QVector<Contact> getContacts() const;
+    QVector<std::shared_ptr<Chat>> getChats() const;
+    QVector<std::shared_ptr<Message<std::string>>> getMessages() const;
 
-    signals:
+signals:
+    // Добавляем ВСЕ необходимые сигналы
     void contactAdded(const Contact& contact);
+    void contactRemoved(contact_id id);
     void chatAdded(std::shared_ptr<Chat> chat);
+    void chatRemoved(chat_id id);
     void messageAdded(std::shared_ptr<Message<std::string>> message);
+    void messageRemoved(message_id id);
     void requestProcessed(const QString& method, const QString& path, bool success);
 
 private:
@@ -35,21 +49,13 @@ private:
     QVector<std::shared_ptr<Chat>>& m_chats;
     QVector<std::shared_ptr<Message<std::string>>>& m_messages;
     
-    QJsonObject handleAddContact(const QJsonObject& data);
-    QJsonObject handleAddChat(const QJsonObject& data);
-    QJsonObject handleAddMessage(const QJsonObject& data);
+    // Приватные методы
     QJsonObject handleGetContacts();
+    QJsonObject handlePostContacts(const QJsonObject& data);
     QJsonObject handleGetChats();
+    QJsonObject handlePostChats(const QJsonObject& data);
     QJsonObject handleGetMessages();
-    
-    bool userExists(user_id userId);
-    bool contactExists(user_id ownerId, user_id contactId);
-    bool chatExists(chat_id id);
-    bool messageExists(message_id id);
-    
-    contact_id generateContactId();
-    chat_id generateChatId();
-    message_id generateMessageId();
+    QJsonObject handlePostMessages(const QJsonObject& data);
 };
 
-#endif
+#endif // MESSAGE_MANAGER_H
