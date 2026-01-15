@@ -9,6 +9,7 @@
 #include <QListWidget>
 #include <QTableWidget>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QSplitter>
 #include "core/contact.h"
 #include "core/сhat.h"
