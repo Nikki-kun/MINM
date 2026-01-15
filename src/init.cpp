@@ -1,4 +1,3 @@
-// main.cpp (исправленный)
 #include "managers/message_manager.h"
 #include "http_server.h"
 #include "widget_manager.h"
@@ -29,15 +28,12 @@ int main(int argc, char *argv[])
     quint16 port = parser.value(portOption).toUShort();
     bool enableGUI = true;
     
-    // Создаём коллекции
     QVector<Contact> contacts;
     QVector<std::shared_ptr<Chat>> chats;
     QVector<std::shared_ptr<Message<std::string>>> messages;
     
-    // Создаём менеджер сообщений
     MessageManager manager(contacts, chats, messages);
     
-    // Создаём HTTP сервер
     HttpServer server(manager);
     
     if (!server.start(port)) {
@@ -47,15 +43,12 @@ int main(int argc, char *argv[])
     
     WidgetManager *widgetManager = nullptr;
     
-    // Всегда создаем GUI, если не отключено явно
     if (enableGUI) {
-        // Создаём GUI интерфейс - ПРАВИЛЬНЫЕ АРГУМЕНТЫ
         widgetManager = new WidgetManager(contacts, chats, messages);
         widgetManager->show();
         
         qDebug() << "GUI window created and shown";
         
-        // Подключаем ТОЛЬКО доступные сигналы
         if (QObject::connect(&manager, &MessageManager::contactAdded,
                              widgetManager, &WidgetManager::onContactAdded)) {
             qDebug() << "Connected contactAdded signal";
@@ -80,7 +73,6 @@ int main(int argc, char *argv[])
         qDebug() << "GUI disabled, running in console mode";
     }
     
-    // Логирование
     QObject::connect(&manager, &MessageManager::contactAdded,
                      [](const Contact& contact) {
                          qDebug() << "[Contact Added]" << contact.contactName;
@@ -113,7 +105,6 @@ int main(int argc, char *argv[])
     
     int result = app.exec();
     
-    // Очистка
     if (widgetManager) {
         delete widgetManager;
     }

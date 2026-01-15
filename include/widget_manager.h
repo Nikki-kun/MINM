@@ -1,4 +1,3 @@
-// widget_manager.h
 #ifndef WIDGET_MANAGER_H
 #define WIDGET_MANAGER_H
 
@@ -55,12 +54,10 @@ private:
     void setupConnections();
     void clearAll();
     
-    // Ссылки на векторы данных
     QVector<Contact>& m_contacts;
     QVector<std::shared_ptr<Chat>>& m_chats;
     QVector<std::shared_ptr<Message<std::string>>>& m_messages;
     
-    // Виджеты
     QSplitter *m_mainSplitter;
     
     QTreeWidget *m_contactsTree;

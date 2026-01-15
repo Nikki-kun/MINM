@@ -29,7 +29,6 @@ public slots:
         qDebug() << "[" << QThread::currentThread()->objectName() 
                  << "] Processing request for socket:" << socketDescriptor;
         
-        // Парсим запрос
         QString requestStr = QString::fromUtf8(requestData);
         QStringList lines = requestStr.split("\r\n");
         
@@ -134,26 +133,19 @@ HttpServer::HttpServer(MessageManager& manager, QObject* parent)
     , m_processorThread(nullptr)
     , m_manager(manager)
 {
-    // Регистрируем qintptr как метатип
     qRegisterMetaType<qintptr>("qintptr");
     
-    // Создаём обработчик запросов
     m_requestProcessor = new RequestProcessor(manager);
     
-    // Создаём отдельный поток для обработки запросов
     m_processorThread = new QThread();
     m_processorThread->setObjectName("RequestProcessorThread");
     
-    // Перемещаем обработчик в поток
     m_requestProcessor->moveToThread(m_processorThread);
     
-    // Регистрируем qintptr для сигналов/слотов
     qRegisterMetaType<qintptr>();
     
-    // Подключаем сигнал завершения обработки
     connect(m_requestProcessor, &RequestProcessor::requestProcessed,
             this, [this](qintptr socketDescriptor) {
-                // Удаляем сокет из мапы после обработки
                 if (m_sockets.contains(socketDescriptor)) {
                     QTcpSocket* socket = m_sockets.take(socketDescriptor);
                     if (socket) {
@@ -164,13 +156,11 @@ HttpServer::HttpServer(MessageManager& manager, QObject* parent)
                 }
             });
     
-    // Запускаем поток
     m_processorThread->start();
     
     qDebug() << "HTTP Server created. Main thread:" << QThread::currentThread();
     qDebug() << "Request processor thread:" << m_processorThread->objectName();
     
-    // Подключаем сигналы сервера
     connect(&m_server, &QTcpServer::newConnection, this, &HttpServer::onNewConnection);
 }
 
@@ -188,7 +178,6 @@ HttpServer::~HttpServer()
         delete m_requestProcessor;
     }
     
-    // Закрываем все сокеты
     for (QTcpSocket* socket : m_sockets.values()) {
         if (socket) {
             socket->close();
@@ -234,11 +223,9 @@ void HttpServer::onNewConnection()
              << socket->peerAddress().toString() 
              << "socket descriptor:" << socketDescriptor;
     
-    // Сохраняем сокет и его дескриптор
     m_sockets[socketDescriptor] = socket;
     m_clients[socketDescriptor] = ClientData(socketDescriptor);
     
-    // Подключаем сигналы
     connect(socket, &QTcpSocket::readyRead, this, &HttpServer::onReadyRead);
     connect(socket, &QTcpSocket::disconnected, this, [this, socketDescriptor]() {
         qDebug() << "[Main Thread] Socket disconnected:" << socketDescriptor;
@@ -259,7 +246,6 @@ void HttpServer::onReadyRead()
     
     qintptr socketDescriptor = socket->socketDescriptor();
     
-    // Читаем данные
     QByteArray data = socket->readAll();
     
     if (data.isEmpty()) {
@@ -267,7 +253,6 @@ void HttpServer::onReadyRead()
         return;
     }
     
-    // Добавляем в буфер
     if (!m_clients.contains(socketDescriptor)) {
         m_clients[socketDescriptor] = ClientData(socketDescriptor);
     }
@@ -275,17 +260,13 @@ void HttpServer::onReadyRead()
     ClientData& clientData = m_clients[socketDescriptor];
     clientData.buffer.append(data);
     
-    // Проверяем завершённость HTTP запроса
     if (clientData.buffer.contains("\r\n\r\n")) {
         qDebug() << "[Main Thread] Full request received from socket:" 
                  << socketDescriptor << "size:" << clientData.buffer.size();
         
-        // Получаем данные запроса
         QByteArray requestData = clientData.buffer;
         clientData.buffer.clear();
         
-        // !!! ПЕРЕДАЁМ ОБРАБОТКУ В ОТДЕЛЬНЫЙ ПОТОК !!!
-        // Теперь мьютексы в Chat, User, Message будут реально использоваться
         QMetaObject::invokeMethod(m_requestProcessor, "processRequest",
                                   Qt::QueuedConnection,
                                   Q_ARG(qintptr, socketDescriptor),
@@ -298,7 +279,6 @@ void HttpServer::sendHttpResponse(qintptr socketDescriptor, int statusCode,
                                  const QString& contentType, 
                                  const QByteArray& body)
 {
-    // Этот метод больше не используется напрямую
     Q_UNUSED(socketDescriptor);
     Q_UNUSED(statusCode);
     Q_UNUSED(statusText);
@@ -310,7 +290,6 @@ void HttpServer::sendHttpResponse(qintptr socketDescriptor, int statusCode,
                                  const QString& statusText, 
                                  const QJsonObject& jsonData)
 {
-    // Этот метод больше не используется напрямую
     Q_UNUSED(socketDescriptor);
     Q_UNUSED(statusCode);
     Q_UNUSED(statusText);

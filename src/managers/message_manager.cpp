@@ -1,10 +1,9 @@
-// message_manager.cpp
 #include "managers/message_manager.h"
 #include <QDebug>
-#include <QJsonObject>       // ДОБАВИТЬ
-#include <QJsonArray>        // ДОБАВИТЬ
-#include <QJsonDocument>     // ДОБАВИТЬ
-#include <QDateTime>         // ДОБАВИТЬ
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QDateTime>
 
 MessageManager::MessageManager(QVector<Contact>& contacts,
                               QVector<std::shared_ptr<Chat>>& chats,
@@ -241,7 +240,6 @@ QJsonObject MessageManager::handleGetMessages()
         messageObj["content"] = QString::fromStdString(message->getContent());
         messageObj["status"] = static_cast<int>(message->getStatus());
         
-        // Конвертируем время в строку
         auto timestamp = message->timestamp;
         auto duration = timestamp.time_since_epoch();
         auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();

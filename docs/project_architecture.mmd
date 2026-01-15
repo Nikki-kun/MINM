@@ -1,69 +1,79 @@
 classDiagram
 direction TB
 
-class User {
-    -user_id id
-    -QString username
-    -QString password
-    -bool online
-    -QDateTime lastSeen
-    -QVector~Contact~ contacts
-    -QVector~Contact~ blockedUsers
-    -mutable std::mutex contacts_mutex
-    -mutable std::mutex blocked_mutex
-    -mutable std::mutex status_mutex
-    +User(user_id id, QString username, QString password)
-    +~User()
-    +addContact(const Contact& contact) void
-    +removeContact(contact_id contactId) void
+class HttpServer {
+    -QTcpServer m_server
+    -RequestProcessor* m_requestProcessor
+    -QThread* m_processorThread
+    -MessageManager& m_manager
+    -QMap~qintptr,QTcpSocket*~ m_sockets
+    -QMap~qintptr,ClientData~ m_clients
+    +HttpServer(MessageManager& manager, QObject* parent)
+    +~HttpServer()
+    +start(quint16 port) bool
+    -onNewConnection() void
+    -onReadyRead() void
+    -sendHttpResponse(...) void
+}
+
+class RequestProcessor {
+    -MessageManager& m_manager
+    +processRequest(qintptr socketDescriptor, QByteArray requestData) void
+    -sendResponse(qintptr socketDescriptor, int statusCode, QString statusText, QString contentType, QByteArray body) void
+    +requestProcessed(qintptr socketDescriptor)$
+}
+
+class MessageManager {
+    -QVector~Contact~& m_contacts
+    -QVector~std::shared_ptr~Chat~~& m_chats
+    -QVector~std::shared_ptr~Message~std::string~~~& m_messages
+    +MessageManager(QVector~Contact~& contacts, QVector~std::shared_ptr~Chat~~& chats, QVector~std::shared_ptr~Message~std::string~~~& messages, QObject* parent)
+    +handleRequest(QString method, QString path, QJsonObject data) QJsonObject
+    +addContact(QJsonObject data) bool
+    +removeContact(contact_id id) bool
+    +addChat(QJsonObject data) bool
+    +removeChat(chat_id id) bool
+    +addMessage(QJsonObject data) bool
+    +removeMessage(message_id id) bool
     +getContacts() QVector~Contact~
-    +blockUser(const Contact& user) void
-    +unblockUser(user_id userId) void
-    +isBlocked(user_id userId) bool
-    +setOnline(bool isOnline) void
-    +getOnline() bool
-    +getLastSeen() QDateTime
+    +getChats() QVector~std::shared_ptr~Chat~~
+    +getMessages() QVector~std::shared_ptr~Message~std::string~~~
+    -handleGetContacts() QJsonObject
+    -handlePostContacts(QJsonObject data) QJsonObject
+    -handleGetChats() QJsonObject
+    -handlePostChats(QJsonObject data) QJsonObject
+    -handleGetMessages() QJsonObject
+    -handlePostMessages(QJsonObject data) QJsonObject
+    +contactAdded(Contact contact)$
+    +contactRemoved(contact_id id)$
+    +chatAdded(std::shared_ptr~Chat~ chat)$
+    +chatRemoved(chat_id id)$
+    +messageAdded(std::shared_ptr~Message~std::string~~ message)$
+    +messageRemoved(message_id id)$
+    +requestProcessed(QString method, QString path, bool success)$
 }
 
 class Contact {
-    -contact_id id
-    -user_id ownerId
-    -user_id contactId
-    -QString contactName
-    -QDateTime addedDate
+    +contact_id id
+    +user_id ownerId
+    +user_id contactId
+    +QString contactName
+    +QDateTime addedDate
     +Contact(contact_id id, user_id ownerId, user_id contactId, QString contactName, QDateTime addedDate)
     +Contact(contact_id id, user_id ownerId, user_id contactId, QString contactName)
     +~Contact()
 }
 
-class Message~ContentType~ {
-    -message_id id
-    -user_id sender_id
-    -user_id receiver_id
-    -ContentType content
-    -std::chrono::system_clock::time_point timestamp
-    -message_status status
-    -mutable std::mutex status_mutex
-    -mutable std::mutex content_mutex
-    +Message(message_id id, user_id sender_id, user_id receiver_id, ContentType content, std::chrono::system_clock::time_point timestamp)
-    +Message(message_id id, user_id sender_id, user_id receiver_id, ContentType content)
-    +~Message()
-    +setStatus(message_status newStatus) void
-    +getStatus() message_status
-    +getContent() ContentType
-    +setContent(const ContentType& newContent) void
-}
-
 class Chat {
-    -chat_id id
-    -chat_type type
-    -std::vector~user_id~ participants
-    -std::vector~message_id~ messages
-    -std::chrono::system_clock::time_point created_date
     -mutable std::shared_mutex participants_mutex
     -mutable std::shared_mutex messages_mutex
-    +Chat(chat_id id, chat_type type, const std::vector~user_id~& participants, const std::vector~message_id~& messages, std::chrono::system_clock::time_point created_date)
-    +Chat(chat_id id, chat_type type, const std::vector~user_id~& participants)
+    +chat_id id
+    +chat_type type
+    +std::vector~user_id~ participants
+    +std::vector~message_id~ messages
+    +std::chrono::system_clock::time_point created_date
+    +Chat(chat_id id, chat_type type, std::vector~user_id~ participants, std::vector~message_id~ messages, std::chrono::system_clock::time_point created_date)
+    +Chat(chat_id id, chat_type type, std::vector~user_id~ participants)
     +~Chat()
     +addParticipant(user_id participant) void
     +removeParticipant(user_id participant) void
@@ -76,88 +86,78 @@ class Chat {
     +operator-(user_id participant) Chat&
 }
 
-class AuthManager {
-    -std::unordered_map~std::string, User*~ sessions
-    -QNetworkAccessManager* networkManager
-    -QString serverBaseUrl
-    +AuthManager(const QString& serverUrl)
-    +~AuthManager()
-    +login(const std::string& username, const std::string& password) void
-    +logout(user_id user_id) void
-    +registerUser(const std::string& username, const std::string& password) void
-    +isUserLoggedIn(user_id user_id) bool
-    +clearExpiredSessions() void
-    -handleLoginReply(QNetworkReply* reply) void
-    -handleRegistrationReply(QNetworkReply* reply) void
-    -handleLogoutReply(QNetworkReply* reply) void
-    -parseUserFromJson(const QJsonObject& json) User*
-    -parseContactFromJson(const QJsonObject& json) Contact
-    +loginSuccess(User* user)$
-    +loginFailed(const QString& error)$
-    +registrationSuccess(User* user)$
-    +registrationFailed(const QString& error)$
-    +logoutSuccess(user_id user_id)$
-    +logoutFailed(user_id user_id, const QString& error)$
-    +operator+(User*) AuthManager&
-    +operator-(User*) AuthManager&
+class Message~ContentType~ {
+    -mutable std::mutex status_mutex
+    -mutable std::mutex content_mutex
+    +message_id id
+    +user_id sender_id
+    +chat_id receiver_id
+    +ContentType content
+    +std::chrono::system_clock::time_point timestamp
+    +message_status status
+    +Message(message_id id, user_id sender_id, user_id receiver_id, ContentType content, std::chrono::system_clock::time_point timestamp)
+    +Message(message_id id, user_id sender_id, user_id receiver_id, ContentType content)
+    +~Message()
+    +setStatus(message_status newStatus) void
+    +getStatus() message_status
+    +getContent() ContentType
+    +setContent(const ContentType& newContent) void
 }
 
-class ContactManager {
-    -std::unordered_map~user_id, std::vector~Contact~~ contacts
-    +ContactManager()
-    +~ContactManager()
-    +addContact(user_id, user_id, std::string) void
-    +removeContact(user_id, user_id) void
-    +getContacts(user_id) std::vector~Contact~
-    +searchContacts(user_id, std::string) std::vector~Contact~
-    +operator+(Contact&) ContactManager&
-    +operator-(Contact&) ContactManager&
-    +operator+(std::vector~Contact~&) ContactManager&
-    +operator-(std::vector~Contact~&) ContactManager&
+class WidgetManager {
+    -QVector~Contact~& m_contacts
+    -QVector~std::shared_ptr~Chat~~& m_chats
+    -QVector~std::shared_ptr~Message~std::string~~~& m_messages
+    -QSplitter* m_mainSplitter
+    -QTreeWidget* m_contactsTree
+    -QTreeWidget* m_chatsTree
+    -QTableWidget* m_messagesTable
+    -QTextEdit* m_messageDetails
+    +WidgetManager(QVector~Contact~& contacts, QVector~std::shared_ptr~Chat~~& chats, QVector~std::shared_ptr~Message~std::string~~~& messages, QWidget* parent)
+    +~WidgetManager()
+    +updateContacts() void
+    +updateChats() void
+    +updateMessages() void
+    +updateAll() void
+    +onContactAdded(Contact contact) void
+    +onChatAdded(std::shared_ptr~Chat~ chat) void
+    +onMessageAdded(std::shared_ptr~Message~std::string~~ message) void
+    -setupUI() void
+    -setupConnections() void
+    -clearAll() void
 }
 
-class MessageManager {
-    -std::unordered_map~message_id, Message~std::string~*~ messages
-    -std::unordered_map~user_id, std::vector~Message~std::string~*~~ undelivered_messages
-    +MessageManager()
-    +~MessageManager()
-    +sendMessage(user_id, user_id, std::string) Message~std::string~*
-    +getMessages(user_id, user_id) std::vector~Message~std::string~*~
-    +updateMessageStatus(message_id, message_status) void
-    +getUndeliveredMessages(user_id) std::vector~Message~std::string~*~
-    +markMessagesAsDelivered(user_id) void
-    +operator+(Message~std::string~*) MessageManager&
-    +operator-(Message~std::string~*) MessageManager&
-    +operator+(std::vector~Message~std::string~*~&) MessageManager&
-    +operator-(std::vector~Message~std::string~*~&) MessageManager&
+class QApplication {
+    <<Qt Framework>>
 }
 
-class NotificationManager {
-    -std::unordered_map~user_id, std::vector~User*~~ observers
-    +NotificationManager()
-    +~NotificationManager()
-    +notifyNewMessage(user_id, Message~std::string~*) void
-    +notifyContactOnline(user_id, user_id) void
-    +addObserver(user_id, User*) void
-    +removeObserver(user_id, User*) void
-    +operator+(User*) NotificationManager&
-    +operator-(User*) NotificationManager&
-    +operator+(std::vector~User*~&) NotificationManager&
-    +operator-(std::vector~User*~&) NotificationManager&
+class QTcpServer {
+    <<Qt Framework>>
 }
 
-User "1" -- "*" Contact : has
-Chat "1" -- "*" Message~std::string~ : contains
-Message~std::string~ "1" -- "1" User : sender
-Message~std::string~ "1" -- "1" User : receiver
-AuthManager --> User : manages
-ContactManager --> Contact : manages
-ContactManager --> User : references
-MessageManager --> Message~std::string~ : manages
-MessageManager --> User : references
-NotificationManager ..> MessageManager : observes
-NotificationManager ..> User : notifies
-MessageManager --> NotificationManager : uses
-AuthManager --> User : creates
-AuthManager ..> QNetworkAccessManager : uses
-AuthManager --|> QObject : extends
+class QTcpSocket {
+    <<Qt Framework>>
+}
+
+class QThread {
+    <<Qt Framework>>
+}
+
+HttpServer "1" -- "1" RequestProcessor : contains
+HttpServer "1" -- "1" QThread : uses
+HttpServer "1" -- "1" QTcpServer : uses
+HttpServer "1" -- "*" QTcpSocket : manages
+HttpServer "1" -- "1" MessageManager : uses
+RequestProcessor "1" -- "1" MessageManager : uses
+RequestProcessor --|> QObject : extends
+HttpServer --|> QObject : extends
+WidgetManager --|> QWidget : extends
+MessageManager "1" -- "*" Contact : manages
+MessageManager "1" -- "*" Chat : manages
+MessageManager "1" -- "*" Message~std::string~ : manages
+Chat "1" -- "*" Message~std::string~ : references
+Message~std::string~ "1" -- "1" Chat : belongs to
+WidgetManager "1" -- "1" MessageManager : observes
+MessageManager ..> WidgetManager : signals
+HttpServer ..> RequestProcessor : signals
+RequestProcessor ..> HttpServer : signals
