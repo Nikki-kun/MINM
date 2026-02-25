@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     WidgetManager *widgetManager = nullptr;
     
     if (enableGUI) {
-        widgetManager = new WidgetManager(contacts, chats, messages);
+        widgetManager = new WidgetManager(manager, contacts, chats, messages);
         widgetManager->show();
         
         qDebug() << "GUI window created and shown";

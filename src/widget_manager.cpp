@@ -1,18 +1,23 @@
 // widget_manager.cpp
 #include "widget_manager.h"
+#include "managers/message_manager.h"
+#include "core/types.h"
 #include <QHeaderView>
 #include <QDateTime>
+#include <QJsonObject>
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
 
 WidgetManager::WidgetManager(
+    MessageManager& manager,
     QVector<Contact>& contacts,
     QVector<std::shared_ptr<Chat>>& chats,
     QVector<std::shared_ptr<Message<std::string>>>& messages,
     QWidget *parent)
     : QWidget(parent)
+    , m_manager(manager)
     , m_contacts(contacts)
     , m_chats(chats)
     , m_messages(messages)
@@ -229,8 +234,20 @@ void WidgetManager::setupUI()
     m_messagesTable->setShowGrid(false);
     m_messagesTable->verticalHeader()->setVisible(false);
     
+    m_messageInput = new QLineEdit(messagesWidget);
+    m_messageInput->setPlaceholderText("Введите сообщение...");
+    m_messageInput->setMaxLength(MAX_MESSAGE_LENGTH);
+
+    m_sendButton = new QPushButton("📤 Отправить", messagesWidget);
+    m_sendButton->setEnabled(false);
+
+    QHBoxLayout *sendLayout = new QHBoxLayout();
+    sendLayout->addWidget(m_messageInput, 1);
+    sendLayout->addWidget(m_sendButton, 0);
+
     messagesLayout->addWidget(m_messagesLabel);
     messagesLayout->addWidget(m_messagesTable);
+    messagesLayout->addLayout(sendLayout);
     messagesWidget->setLayout(messagesLayout);
     
     // Нижняя часть: Детали сообщения
@@ -294,10 +311,12 @@ void WidgetManager::setupConnections()
 {
     connect(m_contactsLabel, &QPushButton::clicked, [this]() {
         m_selectedContactUserId = -1;
-        m_contactsTree->clearSelection();
+        m_selectedChatId = -1;
+        m_chatsTree->clearSelection();
         updateChats();
         updateMessagesForChat(-1);
         m_messageDetails->clear();
+        updateSendButtonState();
     });
 
     connect(m_contactsTree, &QTreeWidget::itemClicked,
@@ -324,6 +343,24 @@ void WidgetManager::setupConnections()
                 int row = item->row();
                 onMessageSelected(row);
             });
+
+    connect(m_sendButton, &QPushButton::clicked, [this]() {
+        if (m_selectedChatId < 0) return;
+        QString text = m_messageInput->text().trimmed();
+        if (text.isEmpty()) return;
+
+        QJsonObject data;
+        data["sender_id"] = static_cast<qint64>(CURRENT_USER_ID);
+        data["receiver_id"] = static_cast<qint64>(m_selectedChatId);
+        data["content"] = text;
+        data["type"] = MESSAGE_NORMAL;
+
+        if (m_manager.addMessage(data)) {
+            m_messageInput->clear();
+        }
+    });
+
+    connect(m_messageInput, &QLineEdit::returnPressed, [this]() { m_sendButton->animateClick(); });
 }
 
 void WidgetManager::updateContacts()
@@ -403,6 +440,17 @@ void WidgetManager::updateChats()
 void WidgetManager::updateMessages()
 {
     updateMessagesForChat(m_selectedChatId);
+}
+
+void WidgetManager::updateSendButtonState()
+{
+    m_sendButton->setEnabled(m_selectedChatId >= 0);
+    m_messageInput->setEnabled(m_selectedChatId >= 0);
+    if (m_selectedChatId < 0) {
+        m_messageInput->setPlaceholderText("Выберите чат для отправки сообщения");
+    } else {
+        m_messageInput->setPlaceholderText("Введите сообщение...");
+    }
 }
 
 void WidgetManager::updateMessagesForChat(chat_id chatId)
@@ -491,6 +539,7 @@ void WidgetManager::updateAll()
     updateContacts();
     updateChats();
     updateMessages();
+    updateSendButtonState();
 }
 
 void WidgetManager::onContactSelected(int index)
@@ -499,9 +548,11 @@ void WidgetManager::onContactSelected(int index)
         const Contact& contact = m_contacts[index];
         m_selectedContactUserId = contact.contactId;
         m_selectedChatId = -1;
+        m_chatsTree->clearSelection();
         emit contactSelected(contact.id);
         updateChats();
         updateMessagesForChat(-1);
+        updateSendButtonState();
         
         // Показываем детали контакта с улучшенным форматированием
         m_messageDetails->setHtml(
@@ -531,6 +582,7 @@ void WidgetManager::onChatSelected(chat_id chatId)
         m_selectedChatId = chat->id;
         emit chatSelected(chat->id);
         updateMessagesForChat(chat->id);
+        updateSendButtonState();
         
         // Получаем информацию о чате
         auto participants = chat->getParticipants();
@@ -661,6 +713,7 @@ void WidgetManager::onChatRemoved(chat_id chatId)
     if (chatId == m_selectedChatId) {
         m_selectedChatId = -1;
         updateMessagesForChat(-1);
+        updateSendButtonState();
     }
     updateChats();
 }

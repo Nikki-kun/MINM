@@ -12,9 +12,12 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QSplitter>
+#include <QLineEdit>
 #include "core/contact.h"
 #include "core/сhat.h"
 #include "core/message.h"
+
+class MessageManager;
 
 class WidgetManager : public QWidget
 {
@@ -22,6 +25,7 @@ class WidgetManager : public QWidget
 
 public:
     explicit WidgetManager(
+        MessageManager& manager,
         QVector<Contact>& contacts,
         QVector<std::shared_ptr<Chat>>& chats,
         QVector<std::shared_ptr<Message<std::string>>>& messages,
@@ -56,7 +60,9 @@ private:
     void setupConnections();
     void clearAll();
     void updateMessagesForChat(chat_id chatId);
+    void updateSendButtonState();
 
+    MessageManager& m_manager;
     static constexpr user_id CURRENT_USER_ID = 0;
     user_id m_selectedContactUserId = -1;  // contactId выбранного контакта
     chat_id m_selectedChatId = -1;
@@ -76,6 +82,9 @@ private:
     QLabel *m_chatsLabel;
     QLabel *m_messagesLabel;
     QLabel *m_detailsLabel;
+
+    QLineEdit *m_messageInput;
+    QPushButton *m_sendButton;
 };
 
 #endif // WIDGET_MANAGER_H
