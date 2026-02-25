@@ -128,9 +128,12 @@ void WidgetManager::setupUI()
     leftLayout->setSpacing(8);
     leftLayout->setContentsMargins(12, 12, 12, 12);
     
-    m_contactsLabel = new QLabel("👥 Контакты", leftPanel);
+    m_contactsLabel = new QPushButton("👥 Контакты", leftPanel);
+    m_contactsLabel->setToolTip("Нажмите, чтобы показать все чаты");
+    m_contactsLabel->setFlat(true);
+    m_contactsLabel->setCursor(Qt::PointingHandCursor);
     m_contactsLabel->setStyleSheet(
-        "QLabel {"
+        "QPushButton {"
         "    font-weight: bold;"
         "    font-size: 13pt;"
         "    color: #ffffff;"
@@ -138,6 +141,10 @@ void WidgetManager::setupUI()
         "    background-color: #0078d4;"
         "    border-radius: 6px;"
         "    border: none;"
+        "    text-align: left;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #106ebe;"
         "}"
     );
     
@@ -285,22 +292,31 @@ void WidgetManager::setupUI()
 
 void WidgetManager::setupConnections()
 {
-    connect(m_contactsTree, &QTreeWidget::itemClicked, 
+    connect(m_contactsLabel, &QPushButton::clicked, [this]() {
+        m_selectedContactUserId = -1;
+        m_contactsTree->clearSelection();
+        updateChats();
+        updateMessagesForChat(-1);
+        m_messageDetails->clear();
+    });
+
+    connect(m_contactsTree, &QTreeWidget::itemClicked,
             [this](QTreeWidgetItem *item, int column) {
                 Q_UNUSED(column);
-                int index = m_contactsTree->indexOfTopLevelItem(item);
-                if (index >= 0) {
+                contact_id contactId = item->data(0, Qt::UserRole).value<contact_id>();
+                auto it = std::find_if(m_contacts.begin(), m_contacts.end(),
+                    [contactId](const Contact& c) { return c.id == contactId; });
+                if (it != m_contacts.end()) {
+                    int index = std::distance(m_contacts.begin(), it);
                     onContactSelected(index);
                 }
             });
     
-    connect(m_chatsTree, &QTreeWidget::itemClicked, 
+    connect(m_chatsTree, &QTreeWidget::itemClicked,
             [this](QTreeWidgetItem *item, int column) {
                 Q_UNUSED(column);
-                int index = m_chatsTree->indexOfTopLevelItem(item);
-                if (index >= 0) {
-                    onChatSelected(index);
-                }
+                chat_id chatId = item->data(0, Qt::UserRole).value<chat_id>();
+                onChatSelected(chatId);
             });
     
     connect(m_messagesTable, &QTableWidget::itemClicked, 
@@ -313,12 +329,13 @@ void WidgetManager::setupConnections()
 void WidgetManager::updateContacts()
 {
     m_contactsTree->clear();
-    
+
     for (const Contact& contact : m_contacts) {
         QTreeWidgetItem *item = new QTreeWidgetItem(m_contactsTree);
         QString displayText = QString("👤 %1").arg(contact.contactName);
         item->setText(0, displayText);
         item->setData(0, Qt::UserRole, QVariant::fromValue(contact.id));
+        item->setData(0, Qt::UserRole + 1, QVariant::fromValue(contact.contactId));
         
         // Улучшенная подсказка с форматированием
         item->setToolTip(0, QString("<b>Контакт:</b> %1<br>"
@@ -340,8 +357,17 @@ void WidgetManager::updateContacts()
 void WidgetManager::updateChats()
 {
     m_chatsTree->clear();
-    
+
     for (const auto& chat : m_chats) {
+        if (m_selectedContactUserId >= 0) {
+            // Контакт выбран — показываем только чаты, где и пользователь (0), и контакт
+            auto participants = chat->getParticipants();
+            bool hasUser = std::find(participants.begin(), participants.end(), CURRENT_USER_ID) != participants.end();
+            bool hasContact = std::find(participants.begin(), participants.end(), m_selectedContactUserId) != participants.end();
+            if (!hasUser || !hasContact)
+                continue;
+        }
+
         QTreeWidgetItem *item = new QTreeWidgetItem(m_chatsTree);
         
         item->setText(0, QString("#%1").arg(chat->id));
@@ -469,8 +495,10 @@ void WidgetManager::onContactSelected(int index)
 {
     if (index >= 0 && index < m_contacts.size()) {
         const Contact& contact = m_contacts[index];
+        m_selectedContactUserId = contact.contactId;
         m_selectedChatId = -1;
         emit contactSelected(contact.id);
+        updateChats();
         updateMessagesForChat(-1);
         
         // Показываем детали контакта с улучшенным форматированием
@@ -492,10 +520,12 @@ void WidgetManager::onContactSelected(int index)
     }
 }
 
-void WidgetManager::onChatSelected(int index)
+void WidgetManager::onChatSelected(chat_id chatId)
 {
-    if (index >= 0 && index < m_chats.size()) {
-        const auto& chat = m_chats[index];
+    auto it = std::find_if(m_chats.begin(), m_chats.end(),
+        [chatId](const auto& c) { return c->id == chatId; });
+    if (it != m_chats.end()) {
+        const auto& chat = *it;
         m_selectedChatId = chat->id;
         emit chatSelected(chat->id);
         updateMessagesForChat(chat->id);

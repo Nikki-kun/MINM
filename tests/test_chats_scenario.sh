@@ -181,20 +181,20 @@ trap cleanup EXIT
 # ============================================
 print_test "ЭТАП 1: Подготовка - создание контактов"
 
-print_subtest "Создание контактов для тестирования"
-RESPONSE=$(curl_request "POST" "/contacts" '{"ownerId": 1, "contactId": 2, "contactName": "Алиса"}')
+print_subtest "Создание контактов для тестирования (владелец — пользователь 0)"
+RESPONSE=$(curl_request "POST" "/contacts" '{"ownerId": 0, "contactId": 2, "contactName": "Алиса"}')
 print_json "$RESPONSE"
 check_result "Создание контакта Алиса" "$RESPONSE" '"status": "success"'
 
-RESPONSE=$(curl_request "POST" "/contacts" '{"ownerId": 1, "contactId": 3, "contactName": "Боб"}')
+RESPONSE=$(curl_request "POST" "/contacts" '{"ownerId": 0, "contactId": 3, "contactName": "Боб"}')
 print_json "$RESPONSE"
 check_result "Создание контакта Боб" "$RESPONSE" '"status": "success"'
 
-RESPONSE=$(curl_request "POST" "/contacts" '{"ownerId": 1, "contactId": 4, "contactName": "Чарли"}')
+RESPONSE=$(curl_request "POST" "/contacts" '{"ownerId": 0, "contactId": 4, "contactName": "Чарли"}')
 print_json "$RESPONSE"
 check_result "Создание контакта Чарли" "$RESPONSE" '"status": "success"'
 
-RESPONSE=$(curl_request "POST" "/contacts" '{"ownerId": 1, "contactId": 5, "contactName": "Диана"}')
+RESPONSE=$(curl_request "POST" "/contacts" '{"ownerId": 0, "contactId": 5, "contactName": "Диана"}')
 print_json "$RESPONSE"
 check_result "Создание контакта Диана" "$RESPONSE" '"status": "success"'
 
@@ -203,10 +203,10 @@ check_result "Создание контакта Диана" "$RESPONSE" '"status
 # ============================================
 print_test "ЭТАП 2: Создание приватных чатов (PRIVATE = 0)"
 
-print_subtest "Приватный чат между пользователем 1 и Алисой (ID: 2)"
-RESPONSE=$(curl_request "POST" "/chats" '{"type": 0, "participants": [1, 2]}')
+print_subtest "Приватный чат между пользователем 0 и Алисой (ID: 2)"
+RESPONSE=$(curl_request "POST" "/chats" '{"type": 0, "participants": [0, 2]}')
 print_json "$RESPONSE"
-check_result "Создание приватного чата 1-2" "$RESPONSE" '"status": "success"'
+check_result "Создание приватного чата 0-2" "$RESPONSE" '"status": "success"'
 sleep 0.3
 CHAT_ID=$(get_last_chat_id)
 if [ -n "$CHAT_ID" ] && [ "$CHAT_ID" != "0" ]; then
@@ -214,10 +214,10 @@ if [ -n "$CHAT_ID" ] && [ "$CHAT_ID" != "0" ]; then
     echo -e "${GREEN}Создан приватный чат ID: $CHAT_ID${NC}"
 fi
 
-print_subtest "Приватный чат между пользователем 1 и Бобом (ID: 3)"
-RESPONSE=$(curl_request "POST" "/chats" '{"type": 0, "participants": [1, 3]}')
+print_subtest "Приватный чат между пользователем 0 и Бобом (ID: 3)"
+RESPONSE=$(curl_request "POST" "/chats" '{"type": 0, "participants": [0, 3]}')
 print_json "$RESPONSE"
-check_result "Создание приватного чата 1-3" "$RESPONSE" '"status": "success"'
+check_result "Создание приватного чата 0-3" "$RESPONSE" '"status": "success"'
 sleep 0.3
 CHAT_ID=$(get_last_chat_id)
 if [ -n "$CHAT_ID" ] && [ "$CHAT_ID" != "0" ]; then
@@ -230,8 +230,8 @@ fi
 # ============================================
 print_test "ЭТАП 3: Создание групповых чатов (GROUP = 1)"
 
-print_subtest "Групповой чат 'Работа' с участниками 1, 2, 3"
-RESPONSE=$(curl_request "POST" "/chats" '{"type": 1, "participants": [1, 2, 3]}')
+print_subtest "Групповой чат 'Работа' с участниками 0, 2, 3"
+RESPONSE=$(curl_request "POST" "/chats" '{"type": 1, "participants": [0, 2, 3]}')
 print_json "$RESPONSE"
 check_result "Создание группового чата 'Работа'" "$RESPONSE" '"status": "success"'
 sleep 0.3
@@ -241,8 +241,8 @@ if [ -n "$CHAT_ID" ] && [ "$CHAT_ID" != "0" ]; then
     echo -e "${GREEN}Создан групповой чат ID: $CHAT_ID${NC}"
 fi
 
-print_subtest "Групповой чат 'Друзья' с участниками 1, 2, 3, 4, 5"
-RESPONSE=$(curl_request "POST" "/chats" '{"type": 1, "participants": [1, 2, 3, 4, 5]}')
+print_subtest "Групповой чат 'Друзья' с участниками 0, 2, 3, 4, 5"
+RESPONSE=$(curl_request "POST" "/chats" '{"type": 1, "participants": [0, 2, 3, 4, 5]}')
 print_json "$RESPONSE"
 check_result "Создание группового чата 'Друзья'" "$RESPONSE" '"status": "success"'
 sleep 0.3
@@ -257,8 +257,8 @@ fi
 # ============================================
 print_test "ЭТАП 4: Создание каналов (CHANNEL = 2)"
 
-print_subtest "Канал 'Новости' с участниками 1, 2, 3, 4, 5"
-RESPONSE=$(curl_request "POST" "/chats" '{"type": 2, "participants": [1, 2, 3, 4, 5]}')
+print_subtest "Канал 'Новости' с участниками 0, 2, 3, 4, 5"
+RESPONSE=$(curl_request "POST" "/chats" '{"type": 2, "participants": [0, 2, 3, 4, 5]}')
 print_json "$RESPONSE"
 check_result "Создание канала 'Новости'" "$RESPONSE" '"status": "success"'
 sleep 0.3
@@ -268,8 +268,8 @@ if [ -n "$CHAT_ID" ] && [ "$CHAT_ID" != "0" ]; then
     echo -e "${GREEN}Создан канал ID: $CHAT_ID${NC}"
 fi
 
-print_subtest "Канал 'Объявления' с участниками 1, 2, 3"
-RESPONSE=$(curl_request "POST" "/chats" '{"type": 2, "participants": [1, 2, 3]}')
+print_subtest "Канал 'Объявления' с участниками 0, 2, 3"
+RESPONSE=$(curl_request "POST" "/chats" '{"type": 2, "participants": [0, 2, 3]}')
 print_json "$RESPONSE"
 check_result "Создание канала 'Объявления'" "$RESPONSE" '"status": "success"'
 sleep 0.3

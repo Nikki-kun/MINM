@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QLabel>
+#include <QPushButton>
 #include <QTextEdit>
 #include <QVector>
 #include <QTreeWidget>
@@ -35,7 +36,7 @@ public slots:
     void updateAll();
     
     void onContactSelected(int index);
-    void onChatSelected(int index);
+    void onChatSelected(chat_id chatId);
     void onMessageSelected(int index);
     
     void onContactAdded(const Contact& contact);
@@ -56,6 +57,8 @@ private:
     void clearAll();
     void updateMessagesForChat(chat_id chatId);
 
+    static constexpr user_id CURRENT_USER_ID = 0;
+    user_id m_selectedContactUserId = -1;  // contactId выбранного контакта
     chat_id m_selectedChatId = -1;
 
     QVector<Contact>& m_contacts;
@@ -69,7 +72,7 @@ private:
     QTableWidget *m_messagesTable;
     QTextEdit *m_messageDetails;
     
-    QLabel *m_contactsLabel;
+    QPushButton *m_contactsLabel;
     QLabel *m_chatsLabel;
     QLabel *m_messagesLabel;
     QLabel *m_detailsLabel;
