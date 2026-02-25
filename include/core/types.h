@@ -25,6 +25,11 @@ typedef enum {
 } message_status;
 
 typedef enum {
+    MESSAGE_NORMAL = 0,   // Сообщение в один чат
+    MESSAGE_BROADCAST = 1 // Сообщение во все чаты
+} message_type;
+
+typedef enum {
     PRIVATE,
     GROUP,
     CHANNEL

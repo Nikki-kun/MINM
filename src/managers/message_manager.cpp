@@ -116,26 +116,41 @@ bool MessageManager::removeChat(chat_id id)
 
 bool MessageManager::addMessage(const QJsonObject& data)
 {
-    if (!data.contains("sender_id") || !data.contains("receiver_id") || !data.contains("content")) {
+    if (!data.contains("sender_id") || !data.contains("content")) {
         return false;
     }
-    
+
+    message_type msgType = static_cast<message_type>(data["type"].toInt(MESSAGE_NORMAL));
+    chat_id receiver_id = data["receiver_id"].toInt(0);
+
+    if (msgType == MESSAGE_NORMAL && !data.contains("receiver_id")) {
+        return false;
+    }
+
     message_id id = m_messages.isEmpty() ? 1 : m_messages.last()->id + 1;
     user_id sender_id = data["sender_id"].toInt();
-    chat_id receiver_id = data["receiver_id"].toInt();
     std::string content = data["content"].toString().toStdString();
-    
-    auto newMessage = std::make_shared<Message<std::string>>(id, sender_id, receiver_id, content);
+
+    if (msgType == MESSAGE_BROADCAST) {
+        receiver_id = -1;  // Рассылка во все чаты
+    }
+
+    auto newMessage = std::make_shared<Message<std::string>>(id, sender_id, receiver_id, content, msgType);
     m_messages.append(newMessage);
 
-    // Добавляем сообщение в чат (receiver_id — это chat_id)
-    for (auto& chat : m_chats) {
-        if (chat->id == receiver_id) {
+    if (msgType == MESSAGE_BROADCAST) {
+        for (auto& chat : m_chats) {
             chat->addMessage(id);
-            break;
+        }
+    } else {
+        for (auto& chat : m_chats) {
+            if (chat->id == receiver_id) {
+                chat->addMessage(id);
+                break;
+            }
         }
     }
-    
+
     emit messageAdded(newMessage);
     return true;
 }
@@ -144,13 +159,19 @@ bool MessageManager::removeMessage(message_id id)
 {
     for (int i = 0; i < m_messages.size(); i++) {
         if (m_messages[i]->id == id) {
+            bool isBroadcast = (m_messages[i]->type == MESSAGE_BROADCAST);
             chat_id chatId = m_messages[i]->receiver_id;
             m_messages.remove(i);
-            // Удаляем сообщение из чата
-            for (auto& chat : m_chats) {
-                if (chat->id == chatId) {
+            if (isBroadcast) {
+                for (auto& chat : m_chats) {
                     chat->removeMessage(id);
-                    break;
+                }
+            } else {
+                for (auto& chat : m_chats) {
+                    if (chat->id == chatId) {
+                        chat->removeMessage(id);
+                        break;
+                    }
                 }
             }
             emit messageRemoved(id);
@@ -253,6 +274,7 @@ QJsonObject MessageManager::handleGetMessages()
         messageObj["id"] = static_cast<qint64>(message->id);
         messageObj["sender_id"] = static_cast<qint64>(message->sender_id);
         messageObj["receiver_id"] = static_cast<qint64>(message->receiver_id);
+        messageObj["type"] = static_cast<int>(message->type);
         messageObj["content"] = QString::fromStdString(message->getContent());
         messageObj["status"] = static_cast<int>(message->getStatus());
         

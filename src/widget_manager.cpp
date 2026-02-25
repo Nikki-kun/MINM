@@ -446,7 +446,9 @@ void WidgetManager::updateMessagesForChat(chat_id chatId)
         QTableWidgetItem *senderItem = new QTableWidgetItem(QString("👤 %1").arg(message->sender_id));
         senderItem->setForeground(QBrush(QColor("#ce9178"))); // Оранжевый для отправителя
         
-        QTableWidgetItem *receiverItem = new QTableWidgetItem(QString("📨 %1").arg(message->receiver_id));
+        QString receiverText = (message->type == MESSAGE_BROADCAST)
+            ? QString("📢 Все чаты") : QString("📨 %1").arg(message->receiver_id);
+        QTableWidgetItem *receiverItem = new QTableWidgetItem(receiverText);
         receiverItem->setForeground(QBrush(QColor("#569cd6"))); // Синий для получателя
         
         QString content = QString::fromStdString(message->getContent());
@@ -608,12 +610,15 @@ void WidgetManager::onMessageSelected(int row)
             statusIcon = "✓✓";
         }
         
+        QString receiverStr = (message->type == MESSAGE_BROADCAST)
+            ? QString("📢 Все чаты (рассылка)") : QString("📨 %1").arg(message->receiver_id);
         m_messageDetails->setHtml(
             QString("<div style='font-family: Consolas, Monaco, monospace; line-height: 1.6;'>"
                     "<h3 style='color: #4ec9b0; margin-top: 0;'>📨 Детали сообщения</h3>"
                     "<p><b style='color: #ce9178;'>ID:</b> <span style='color: #4ec9b0;'>#%1</span></p>"
+                    "<p><b style='color: #ce9178;'>Тип:</b> <span style='color: #dcdcaa;'>%9</span></p>"
                     "<p><b style='color: #ce9178;'>Отправитель:</b> <span style='color: #ce9178;'>👤 %2</span></p>"
-                    "<p><b style='color: #ce9178;'>Получатель (чат):</b> <span style='color: #569cd6;'>📨 %3</span></p>"
+                    "<p><b style='color: #ce9178;'>Получатель:</b> <span style='color: #569cd6;'>%3</span></p>"
                     "<p><b style='color: #ce9178;'>Контент:</b></p>"
                     "<div style='background-color: #1e1e1e; padding: 8px; border-left: 3px solid #0078d4; margin: 8px 0; border-radius: 4px;'>"
                     "<span style='color: #d4d4d4;'>%4</span></div>"
@@ -622,12 +627,13 @@ void WidgetManager::onMessageSelected(int row)
                     "</div>")
             .arg(message->id)
             .arg(message->sender_id)
-            .arg(message->receiver_id)
+            .arg(receiverStr)
             .arg(QString::fromStdString(message->getContent()).toHtmlEscaped())
             .arg(timestamp.toString("dd.MM.yyyy HH:mm:ss"))
             .arg(statusColor)
             .arg(statusIcon)
             .arg(statusText)
+            .arg(message->type == MESSAGE_BROADCAST ? "📢 Рассылка" : "Обычное")
         );
     }
 }
@@ -662,23 +668,19 @@ void WidgetManager::onChatRemoved(chat_id chatId)
 void WidgetManager::onMessageAdded(std::shared_ptr<Message<std::string>> message)
 {
     updateChats();  // Обновляем счётчик сообщений в таблице чатов
-    if (message && message->receiver_id == m_selectedChatId) {
-        updateMessagesForChat(m_selectedChatId);
+    if (message && m_selectedChatId >= 0) {
+        if (message->type == MESSAGE_BROADCAST || message->receiver_id == m_selectedChatId) {
+            updateMessagesForChat(m_selectedChatId);
+        }
     }
 }
 
 void WidgetManager::onMessageRemoved(message_id messageId)
 {
+    Q_UNUSED(messageId);
     updateChats();  // Обновляем счётчик сообщений в таблице чатов
     if (m_selectedChatId >= 0) {
-        auto chatIt = std::find_if(m_chats.begin(), m_chats.end(),
-            [this](const auto& c) { return c->id == m_selectedChatId; });
-        if (chatIt != m_chats.end()) {
-            auto msgIds = (*chatIt)->getMessages();
-            if (std::find(msgIds.begin(), msgIds.end(), messageId) != msgIds.end()) {
-                updateMessagesForChat(m_selectedChatId);
-            }
-        }
+        updateMessagesForChat(m_selectedChatId);  // Обновляем список (в т.ч. для рассылки)
     }
 }
 

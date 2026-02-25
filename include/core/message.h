@@ -19,10 +19,13 @@ public:
     ContentType content;
     std::chrono::system_clock::time_point timestamp;
     message_status status;
+    message_type type;
 
-    Message(message_id id, user_id sender_id, user_id receiver_id, 
-            ContentType content, std::chrono::system_clock::time_point timestamp);
-    Message(message_id id, user_id sender_id, user_id receiver_id, ContentType content);
+    Message(message_id id, user_id sender_id, chat_id receiver_id, 
+            ContentType content, std::chrono::system_clock::time_point timestamp,
+            message_type type = MESSAGE_NORMAL);
+    Message(message_id id, user_id sender_id, chat_id receiver_id, ContentType content,
+           message_type type = MESSAGE_NORMAL);
     ~Message() = default;
 
     void setStatus(message_status newStatus);

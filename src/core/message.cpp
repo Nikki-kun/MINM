@@ -3,15 +3,16 @@
 
 template<typename ContentType>
 Message<ContentType>::Message(message_id id, user_id sender_id, chat_id receiver_id, 
-                              ContentType content, std::chrono::system_clock::time_point timestamp)
+                              ContentType content, std::chrono::system_clock::time_point timestamp,
+                              message_type type)
     : id(id), sender_id(sender_id), receiver_id(receiver_id), 
-      content(content), timestamp(timestamp), status(SENT) {}
+      content(content), timestamp(timestamp), status(SENT), type(type) {}
 
 template<typename ContentType>
 Message<ContentType>::Message(message_id id, user_id sender_id, chat_id receiver_id, 
-                              ContentType content)
+                              ContentType content, message_type type)
     : id(id), sender_id(sender_id), receiver_id(receiver_id), 
-      content(content), timestamp(std::chrono::system_clock::now()), status(SENT) {}
+      content(content), timestamp(std::chrono::system_clock::now()), status(SENT), type(type) {}
 
 template class Message<std::string>;
 template class Message<int>;
