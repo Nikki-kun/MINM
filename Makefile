@@ -29,7 +29,6 @@ install:
 		python3-pip \
 		doxygen \
 		graphviz
-	pip3 install flask
 
 build:
 	@$(MKDIR) $(BUILD_DIR)
