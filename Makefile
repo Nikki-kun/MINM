@@ -7,7 +7,7 @@ DOCS_DIR := docs/html
 SRC_DIR := src
 INCLUDE_DIR := include
 
-.PHONY: all install build run docs clean test
+.PHONY: all install build run docs clean test test-server test-chats
 
 all: build
 
@@ -42,8 +42,11 @@ run: build
 docs:
 	doxygen Doxyfile
 
-test:
-	python3 test_server/main.py
+test-server: build
+	./tests/test_server.sh
+
+test: build
+	./tests/test_chats_scenario.sh
 
 clean:
 	$(RM) $(BUILD_DIR)
@@ -60,6 +63,8 @@ help:
 	@echo "  run     - Build and run project"
 	@echo "  docs    - Generate documentation via Doxygen"
 	@echo "  test    - Run test server (test_server.py)"
+	@echo "  test-server - Run HTTP server integration tests (tests/test_server.sh)"
+	@echo "  test-chats  - Run chats scenario tests (tests/test_chats_scenario.sh)"
 	@echo "  clean   - Remove build and docs/html directories"
 	@echo "  rebuild - Full project rebuild"
 	@echo "  rerun   - Full rebuild and run"
