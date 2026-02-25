@@ -2,8 +2,6 @@
 #define TYPES_H
 
 #include <cstdint>
-#include <stdbool.h>
-#include <stdint.h>
 #include <cstddef>
 #include <string>
 #include <chrono>
