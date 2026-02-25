@@ -1,11 +1,10 @@
-// message_manager.h
 #ifndef MESSAGE_MANAGER_H
 #define MESSAGE_MANAGER_H
 
 #include <QObject>
 #include <QVector>
-#include <QJsonObject>   // ДОБАВИТЬ
-#include <QJsonArray>    // ДОБАВИТЬ
+#include <QJsonObject>
+#include <QJsonArray>
 #include "core/contact.h"
 #include "core/сhat.h"
 #include "core/message.h"
@@ -22,7 +21,6 @@ public:
     
     QJsonObject handleRequest(const QString& method, const QString& path, const QJsonObject& data);
     
-    // Методы для управления данными
     bool addContact(const QJsonObject& data);
     bool removeContact(contact_id id);
     bool addChat(const QJsonObject& data);
@@ -35,7 +33,6 @@ public:
     QVector<std::shared_ptr<Message<std::string>>> getMessages() const;
 
 signals:
-    // Добавляем ВСЕ необходимые сигналы
     void contactAdded(const Contact& contact);
     void contactRemoved(contact_id id);
     void chatAdded(std::shared_ptr<Chat> chat);
@@ -49,7 +46,6 @@ private:
     QVector<std::shared_ptr<Chat>>& m_chats;
     QVector<std::shared_ptr<Message<std::string>>>& m_messages;
     
-    // Приватные методы
     QJsonObject handleGetContacts();
     QJsonObject handlePostContacts(const QJsonObject& data);
     QJsonObject handleGetChats();
@@ -58,4 +54,4 @@ private:
     QJsonObject handlePostMessages(const QJsonObject& data);
 };
 
-#endif // MESSAGE_MANAGER_H
+#endif

@@ -131,9 +131,8 @@ bool MessageManager::addMessage(const QJsonObject& data)
     user_id sender_id = data["sender_id"].toInt();
     std::string content = data["content"].toString().toStdString();
 
-    if (msgType == MESSAGE_BROADCAST) {
-        receiver_id = -1;  // Рассылка во все чаты
-    }
+    if (msgType == MESSAGE_BROADCAST)
+        receiver_id = -1;
 
     auto newMessage = std::make_shared<Message<std::string>>(id, sender_id, receiver_id, content, msgType);
     m_messages.append(newMessage);

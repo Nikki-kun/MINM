@@ -46,47 +46,13 @@ int main(int argc, char *argv[])
     if (enableGUI) {
         widgetManager = new WidgetManager(manager, contacts, chats, messages);
         widgetManager->show();
-        
-        qDebug() << "GUI window created and shown";
-        
-        if (QObject::connect(&manager, &MessageManager::contactAdded,
-                             widgetManager, &WidgetManager::onContactAdded)) {
-            qDebug() << "Connected contactAdded signal";
-        } else {
-            qDebug() << "Failed to connect contactAdded signal";
-        }
-        
-        if (QObject::connect(&manager, &MessageManager::chatAdded,
-                             widgetManager, &WidgetManager::onChatAdded)) {
-            qDebug() << "Connected chatAdded signal";
-        } else {
-            qDebug() << "Failed to connect chatAdded signal";
-        }
-        
-        if (QObject::connect(&manager, &MessageManager::messageAdded,
-                             widgetManager, &WidgetManager::onMessageAdded)) {
-            qDebug() << "Connected messageAdded signal";
-        } else {
-            qDebug() << "Failed to connect messageAdded signal";
-        }
-    } else {
-        qDebug() << "GUI disabled, running in console mode";
+        QObject::connect(&manager, &MessageManager::contactAdded, widgetManager, &WidgetManager::onContactAdded);
+        QObject::connect(&manager, &MessageManager::contactRemoved, widgetManager, &WidgetManager::onContactRemoved);
+        QObject::connect(&manager, &MessageManager::chatAdded, widgetManager, &WidgetManager::onChatAdded);
+        QObject::connect(&manager, &MessageManager::chatRemoved, widgetManager, &WidgetManager::onChatRemoved);
+        QObject::connect(&manager, &MessageManager::messageAdded, widgetManager, &WidgetManager::onMessageAdded);
+        QObject::connect(&manager, &MessageManager::messageRemoved, widgetManager, &WidgetManager::onMessageRemoved);
     }
-    
-    QObject::connect(&manager, &MessageManager::contactAdded,
-                     [](const Contact& contact) {
-                         qDebug() << "[Contact Added]" << contact.contactName;
-                     });
-    
-    QObject::connect(&manager, &MessageManager::chatAdded,
-                     [](std::shared_ptr<Chat> chat) {
-                         qDebug() << "[Chat Created] ID:" << chat->id;
-                     });
-    
-    QObject::connect(&manager, &MessageManager::messageAdded,
-                     [](std::shared_ptr<Message<std::string>> message) {
-                         qDebug() << "[Message Sent] From:" << message->sender_id;
-                     });
     
     std::cout << "===============================================" << std::endl;
     std::cout << "Messenger HTTP Server running on port " << port << std::endl;

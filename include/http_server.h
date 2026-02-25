@@ -10,7 +10,6 @@
 #include <memory>
 #include "managers/message_manager.h"
 
-// Предварительное объявление
 class RequestProcessor;
 
 class HttpServer : public QObject
@@ -30,9 +29,8 @@ private slots:
 private:
     struct ClientData {
         QByteArray buffer;
-        qintptr socketDescriptor;  // Сохраняем дескриптор сокета
-        
-        // Конструктор для инициализации
+        qintptr socketDescriptor;
+
         ClientData() : socketDescriptor(0) {}
         ClientData(qintptr descriptor) : socketDescriptor(descriptor) {}
     };
@@ -45,17 +43,15 @@ private:
                          const QString& statusText, 
                          const QJsonObject& jsonData);
     
-    // Приватные члены для многопоточности
     RequestProcessor* m_requestProcessor;
     QThread* m_processorThread;
     MessageManager& m_manager;
     
     QTcpServer m_server;
-    QMap<qintptr, ClientData> m_clients;  // Используем дескриптор как ключ
-    QMap<qintptr, QTcpSocket*> m_sockets;  // Отдельно храним сокеты
+    QMap<qintptr, ClientData> m_clients;
+    QMap<qintptr, QTcpSocket*> m_sockets;
 };
 
-// Регистрируем qintptr как метатип
 Q_DECLARE_METATYPE(qintptr)
 
-#endif // HTTPSERVER_H
+#endif

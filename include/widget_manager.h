@@ -7,7 +7,6 @@
 #include <QTextEdit>
 #include <QVector>
 #include <QTreeWidget>
-#include <QListWidget>
 #include <QTableWidget>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -64,7 +63,7 @@ private:
 
     MessageManager& m_manager;
     static constexpr user_id CURRENT_USER_ID = 0;
-    user_id m_selectedContactUserId = -1;  // contactId выбранного контакта
+    user_id m_selectedContactUserId = -1;
     chat_id m_selectedChatId = -1;
 
     QVector<Contact>& m_contacts;

@@ -95,8 +95,9 @@ class Message~ContentType~ {
     +ContentType content
     +std::chrono::system_clock::time_point timestamp
     +message_status status
-    +Message(message_id id, user_id sender_id, user_id receiver_id, ContentType content, std::chrono::system_clock::time_point timestamp)
-    +Message(message_id id, user_id sender_id, user_id receiver_id, ContentType content)
+    +message_type type
+    +Message(message_id id, user_id sender_id, chat_id receiver_id, ContentType content, time_point timestamp, message_type type)
+    +Message(message_id id, user_id sender_id, chat_id receiver_id, ContentType content, message_type type)
     +~Message()
     +setStatus(message_status newStatus) void
     +getStatus() message_status
@@ -105,6 +106,9 @@ class Message~ContentType~ {
 }
 
 class WidgetManager {
+    -MessageManager& m_manager
+    -user_id m_selectedContactUserId
+    -chat_id m_selectedChatId
     -QVector~Contact~& m_contacts
     -QVector~std::shared_ptr~Chat~~& m_chats
     -QVector~std::shared_ptr~Message~std::string~~~& m_messages
@@ -113,18 +117,43 @@ class WidgetManager {
     -QTreeWidget* m_chatsTree
     -QTableWidget* m_messagesTable
     -QTextEdit* m_messageDetails
-    +WidgetManager(QVector~Contact~& contacts, QVector~std::shared_ptr~Chat~~& chats, QVector~std::shared_ptr~Message~std::string~~~& messages, QWidget* parent)
+    -QPushButton* m_contactsLabel
+    -QLabel* m_chatsLabel
+    -QLabel* m_messagesLabel
+    -QLabel* m_detailsLabel
+    -QLineEdit* m_messageInput
+    -QPushButton* m_sendButton
+    +WidgetManager(MessageManager& manager, QVector~Contact~& contacts, QVector~std::shared_ptr~Chat~~& chats, QVector~std::shared_ptr~Message~std::string~~~& messages, QWidget* parent)
     +~WidgetManager()
     +updateContacts() void
     +updateChats() void
     +updateMessages() void
     +updateAll() void
+    +onContactSelected(int index) void
+    +onChatSelected(chat_id chatId) void
+    +onMessageSelected(int index) void
     +onContactAdded(Contact contact) void
+    +onContactRemoved(contact_id id) void
     +onChatAdded(std::shared_ptr~Chat~ chat) void
+    +onChatRemoved(chat_id id) void
     +onMessageAdded(std::shared_ptr~Message~std::string~~ message) void
+    +onMessageRemoved(message_id id) void
     -setupUI() void
     -setupConnections() void
     -clearAll() void
+    -updateMessagesForChat(chat_id chatId) void
+    -updateSendButtonState() void
+    +contactSelected(contact_id id)$
+    +chatSelected(chat_id id)$
+    +messageSelected(message_id id)$
+}
+
+class UiStyles {
+    <<namespace Ui>>
+    +mainStylesheet() QString
+    +panelHeaderStyle() QString
+    +contactsButtonStyle() QString
+    +detailsTextEditStyle() QString
 }
 
 class QApplication {
@@ -152,12 +181,13 @@ RequestProcessor "1" -- "1" MessageManager : uses
 RequestProcessor --|> QObject : extends
 HttpServer --|> QObject : extends
 WidgetManager --|> QWidget : extends
+WidgetManager "1" -- "1" MessageManager : uses
+WidgetManager ..> UiStyles : uses
 MessageManager "1" -- "*" Contact : manages
 MessageManager "1" -- "*" Chat : manages
 MessageManager "1" -- "*" Message~std::string~ : manages
 Chat "1" -- "*" Message~std::string~ : references
 Message~std::string~ "1" -- "1" Chat : belongs to
-WidgetManager "1" -- "1" MessageManager : observes
 MessageManager ..> WidgetManager : signals
 HttpServer ..> RequestProcessor : signals
 RequestProcessor ..> HttpServer : signals

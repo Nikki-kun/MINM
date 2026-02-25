@@ -1,33 +1,20 @@
 #include "http_server.h"
-#include <QDebug>
 #include <QJsonParseError>
-#include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
-#include <QMutex>
-#include <QMutexLocker>
 
 class RequestProcessor : public QObject
 {
     Q_OBJECT
     
 public:
-    RequestProcessor(MessageManager& manager, QObject* parent = nullptr) 
-        : QObject(parent), m_manager(manager) 
-    {
-        qDebug() << "RequestProcessor created in thread:" << QThread::currentThread();
-    }
-    
-    ~RequestProcessor() {
-        qDebug() << "RequestProcessor destroyed";
-    }
+    RequestProcessor(MessageManager& manager, QObject* parent = nullptr)
+        : QObject(parent), m_manager(manager) {}
     
 public slots:
     void processRequest(qintptr socketDescriptor, const QByteArray& requestData)
     {
-        qDebug() << "[" << QThread::currentThread()->objectName() 
-                 << "] Processing request for socket:" << socketDescriptor;
         
         QString requestStr = QString::fromUtf8(requestData);
         QStringList lines = requestStr.split("\r\n");
@@ -48,8 +35,6 @@ public slots:
         QString method = firstLine[0].toUpper();
         QString path = firstLine[1];
         
-        qDebug() << "[" << QThread::currentThread()->objectName() 
-                 << "] " << method << path;
         
         QJsonObject jsonData;
         int bodyIndex = requestStr.indexOf("\r\n\r\n");
@@ -60,28 +45,11 @@ public slots:
                 QJsonDocument doc = QJsonDocument::fromJson(body, &parseError);
                 if (parseError.error == QJsonParseError::NoError) {
                     jsonData = doc.object();
-                } else {
-                    qWarning() << "JSON parse error:" << parseError.errorString();
                 }
             }
         }
         
-        QJsonObject response;
-        {
-            static QMutex logMutex;
-            QMutexLocker locker(&logMutex);
-            qDebug() << "[" << QThread::currentThread()->objectName() 
-                     << "] Calling MessageManager::handleRequest()";
-        }
-        
-        response = m_manager.handleRequest(method, path, jsonData);
-        
-        {
-            static QMutex logMutex;
-            QMutexLocker locker(&logMutex);
-            qDebug() << "[" << QThread::currentThread()->objectName() 
-                     << "] Request processed, sending response";
-        }
+        QJsonObject response = m_manager.handleRequest(method, path, jsonData);
         
         QJsonDocument doc(response);
         sendResponse(socketDescriptor, 200, "OK", "application/json", doc.toJson(QJsonDocument::Indented));
@@ -116,8 +84,6 @@ private:
             socket->flush();
             socket->waitForBytesWritten(3000);
             socket->close();
-        } else {
-            qWarning() << "Failed to set socket descriptor for response:" << socket->errorString();
         }
         
         socket->deleteLater();
@@ -157,17 +123,11 @@ HttpServer::HttpServer(MessageManager& manager, QObject* parent)
             });
     
     m_processorThread->start();
-    
-    qDebug() << "HTTP Server created. Main thread:" << QThread::currentThread();
-    qDebug() << "Request processor thread:" << m_processorThread->objectName();
-    
     connect(&m_server, &QTcpServer::newConnection, this, &HttpServer::onNewConnection);
 }
 
 HttpServer::~HttpServer()
 {
-    qDebug() << "Shutting down HTTP server...";
-    
     if (m_processorThread) {
         m_processorThread->quit();
         m_processorThread->wait();
@@ -190,26 +150,7 @@ HttpServer::~HttpServer()
 
 bool HttpServer::start(quint16 port)
 {
-    if (!m_server.listen(QHostAddress::Any, port)) {
-        qCritical() << "Failed to start HTTP server on port" << port << ":" << m_server.errorString();
-        return false;
-    }
-    
-    qInfo() << "===============================================";
-    qInfo() << "HTTP server started on port" << port;
-    qInfo() << "Main thread:" << QThread::currentThread();
-    qInfo() << "Processor thread:" << m_processorThread->objectName();
-    qInfo() << "===============================================";
-    qInfo() << "Available endpoints:";
-    qInfo() << "  GET  /contacts";
-    qInfo() << "  POST /contacts";
-    qInfo() << "  GET  /chats";
-    qInfo() << "  POST /chats";
-    qInfo() << "  GET  /messages";
-    qInfo() << "  POST /messages";
-    qInfo() << "===============================================";
-    
-    return true;
+    return m_server.listen(QHostAddress::Any, port);
 }
 
 void HttpServer::onNewConnection()
@@ -218,17 +159,11 @@ void HttpServer::onNewConnection()
     if (!socket) return;
     
     qintptr socketDescriptor = socket->socketDescriptor();
-    
-    qDebug() << "[Main Thread] New connection from" 
-             << socket->peerAddress().toString() 
-             << "socket descriptor:" << socketDescriptor;
-    
     m_sockets[socketDescriptor] = socket;
     m_clients[socketDescriptor] = ClientData(socketDescriptor);
     
     connect(socket, &QTcpSocket::readyRead, this, &HttpServer::onReadyRead);
     connect(socket, &QTcpSocket::disconnected, this, [this, socketDescriptor]() {
-        qDebug() << "[Main Thread] Socket disconnected:" << socketDescriptor;
         if (m_sockets.contains(socketDescriptor)) {
             QTcpSocket* socket = m_sockets.take(socketDescriptor);
             if (socket) {
@@ -248,10 +183,7 @@ void HttpServer::onReadyRead()
     
     QByteArray data = socket->readAll();
     
-    if (data.isEmpty()) {
-        qWarning() << "Empty data from socket:" << socketDescriptor;
-        return;
-    }
+    if (data.isEmpty()) return;
     
     if (!m_clients.contains(socketDescriptor)) {
         m_clients[socketDescriptor] = ClientData(socketDescriptor);
@@ -261,9 +193,6 @@ void HttpServer::onReadyRead()
     clientData.buffer.append(data);
     
     if (clientData.buffer.contains("\r\n\r\n")) {
-        qDebug() << "[Main Thread] Full request received from socket:" 
-                 << socketDescriptor << "size:" << clientData.buffer.size();
-        
         QByteArray requestData = clientData.buffer;
         clientData.buffer.clear();
         
