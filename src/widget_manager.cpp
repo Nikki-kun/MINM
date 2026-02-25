@@ -2,6 +2,7 @@
 #include "widget_manager.h"
 #include <QHeaderView>
 #include <QDateTime>
+#include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
@@ -375,11 +376,42 @@ void WidgetManager::updateChats()
 
 void WidgetManager::updateMessages()
 {
+    updateMessagesForChat(m_selectedChatId);
+}
+
+void WidgetManager::updateMessagesForChat(chat_id chatId)
+{
     m_messagesTable->clearContents();
-    m_messagesTable->setRowCount(m_messages.size());
-    
-    for (int i = 0; i < m_messages.size(); i++) {
-        const auto& message = m_messages[i];
+    m_messagesTable->setRowCount(0);
+
+    if (chatId < 0) {
+        m_messagesLabel->setText("📨 Сообщения — выберите чат");
+        return;
+    }
+
+    m_messagesLabel->setText("📨 Сообщения");
+
+    // Находим чат и получаем его сообщения
+    auto chatIt = std::find_if(m_chats.begin(), m_chats.end(),
+        [chatId](const auto& c) { return c->id == chatId; });
+    if (chatIt == m_chats.end()) return;
+
+    const auto& messageIds = (*chatIt)->getMessages();
+
+    // Собираем сообщения чата в порядке их ID
+    QVector<std::shared_ptr<Message<std::string>>> chatMessages;
+    for (message_id msgId : messageIds) {
+        auto msgIt = std::find_if(m_messages.begin(), m_messages.end(),
+            [msgId](const auto& m) { return m->id == msgId; });
+        if (msgIt != m_messages.end()) {
+            chatMessages.append(*msgIt);
+        }
+    }
+
+    m_messagesTable->setRowCount(chatMessages.size());
+
+    for (int i = 0; i < chatMessages.size(); i++) {
+        const auto& message = chatMessages[i];
         
         QTableWidgetItem *idItem = new QTableWidgetItem(QString("#%1").arg(message->id));
         idItem->setData(Qt::UserRole, QVariant::fromValue(message->id));
@@ -437,7 +469,9 @@ void WidgetManager::onContactSelected(int index)
 {
     if (index >= 0 && index < m_contacts.size()) {
         const Contact& contact = m_contacts[index];
+        m_selectedChatId = -1;
         emit contactSelected(contact.id);
+        updateMessagesForChat(-1);
         
         // Показываем детали контакта с улучшенным форматированием
         m_messageDetails->setHtml(
@@ -462,7 +496,9 @@ void WidgetManager::onChatSelected(int index)
 {
     if (index >= 0 && index < m_chats.size()) {
         const auto& chat = m_chats[index];
+        m_selectedChatId = chat->id;
         emit chatSelected(chat->id);
+        updateMessagesForChat(chat->id);
         
         // Получаем информацию о чате
         auto participants = chat->getParticipants();
@@ -505,10 +541,17 @@ void WidgetManager::onChatSelected(int index)
     }
 }
 
-void WidgetManager::onMessageSelected(int index)
+void WidgetManager::onMessageSelected(int row)
 {
-    if (index >= 0 && index < m_messages.size()) {
-        const auto& message = m_messages[index];
+    if (row < 0) return;
+    QTableWidgetItem *idItem = m_messagesTable->item(row, 0);
+    if (!idItem) return;
+
+    message_id msgId = idItem->data(Qt::UserRole).value<message_id>();
+    auto it = std::find_if(m_messages.begin(), m_messages.end(),
+        [msgId](const auto& m) { return m->id == msgId; });
+    if (it != m_messages.end()) {
+        const auto& message = *it;
         emit messageSelected(message->id);
         
         // Конвертируем время
@@ -579,20 +622,34 @@ void WidgetManager::onChatAdded(std::shared_ptr<Chat> chat)
 
 void WidgetManager::onChatRemoved(chat_id chatId)
 {
-    Q_UNUSED(chatId);
+    if (chatId == m_selectedChatId) {
+        m_selectedChatId = -1;
+        updateMessagesForChat(-1);
+    }
     updateChats();
 }
 
 void WidgetManager::onMessageAdded(std::shared_ptr<Message<std::string>> message)
 {
-    Q_UNUSED(message);
-    updateMessages();
+    updateChats();  // Обновляем счётчик сообщений в таблице чатов
+    if (message && message->receiver_id == m_selectedChatId) {
+        updateMessagesForChat(m_selectedChatId);
+    }
 }
 
 void WidgetManager::onMessageRemoved(message_id messageId)
 {
-    Q_UNUSED(messageId);
-    updateMessages();
+    updateChats();  // Обновляем счётчик сообщений в таблице чатов
+    if (m_selectedChatId >= 0) {
+        auto chatIt = std::find_if(m_chats.begin(), m_chats.end(),
+            [this](const auto& c) { return c->id == m_selectedChatId; });
+        if (chatIt != m_chats.end()) {
+            auto msgIds = (*chatIt)->getMessages();
+            if (std::find(msgIds.begin(), msgIds.end(), messageId) != msgIds.end()) {
+                updateMessagesForChat(m_selectedChatId);
+            }
+        }
+    }
 }
 
 void WidgetManager::clearAll()

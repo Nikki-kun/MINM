@@ -127,6 +127,14 @@ bool MessageManager::addMessage(const QJsonObject& data)
     
     auto newMessage = std::make_shared<Message<std::string>>(id, sender_id, receiver_id, content);
     m_messages.append(newMessage);
+
+    // Добавляем сообщение в чат (receiver_id — это chat_id)
+    for (auto& chat : m_chats) {
+        if (chat->id == receiver_id) {
+            chat->addMessage(id);
+            break;
+        }
+    }
     
     emit messageAdded(newMessage);
     return true;
@@ -136,7 +144,15 @@ bool MessageManager::removeMessage(message_id id)
 {
     for (int i = 0; i < m_messages.size(); i++) {
         if (m_messages[i]->id == id) {
+            chat_id chatId = m_messages[i]->receiver_id;
             m_messages.remove(i);
+            // Удаляем сообщение из чата
+            for (auto& chat : m_chats) {
+                if (chat->id == chatId) {
+                    chat->removeMessage(id);
+                    break;
+                }
+            }
             emit messageRemoved(id);
             return true;
         }

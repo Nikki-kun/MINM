@@ -54,7 +54,10 @@ private:
     void setupUI();
     void setupConnections();
     void clearAll();
-    
+    void updateMessagesForChat(chat_id chatId);
+
+    chat_id m_selectedChatId = -1;
+
     QVector<Contact>& m_contacts;
     QVector<std::shared_ptr<Chat>>& m_chats;
     QVector<std::shared_ptr<Message<std::string>>>& m_messages;

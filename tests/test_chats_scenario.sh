@@ -129,7 +129,7 @@ SERVER_PID=$!
 
 # Ожидание запуска сервера
 echo "Ожидание запуска сервера..."
-sleep 3
+sleep 1
 
 # Проверка, что сервер запустился
 if ! kill -0 $SERVER_PID 2>/dev/null; then
