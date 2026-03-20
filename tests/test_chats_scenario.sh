@@ -1,41 +1,122 @@
 #!/bin/bash
 
-# Скрипт для тестирования сценария с несколькими чатами разных типов
-# Использование: ./test_chats_scenario.sh [port]
-
 PORT=${1:-8080}
 SERVER_BINARY="./build/MINM"
 BASE_URL="http://localhost:${PORT}"
+DB_NAME="${MINM_DB_NAME:-minm_test}"
+DB_USER="${MINM_DB_USER:-minm}"
+DB_PASSWORD="${MINM_DB_PASSWORD:-minm_password}"
+DB_ROOT_PASSWORD="${MINM_DB_ROOT_PASSWORD:-}"
 
-# Цвета для вывода
+MINM_DB_HOST="${MINM_DB_HOST:-127.0.0.1}"
+MINM_DB_PORT="${MINM_DB_PORT:-3306}"
+MINM_DB_RESET="${MINM_DB_RESET:-1}"
+
+MYSQL_ROOT_ARGS="--protocol=socket -uroot"
+if [ -n "$DB_ROOT_PASSWORD" ]; then
+    MYSQL_ROOT_ARGS="$MYSQL_ROOT_ARGS -p${DB_ROOT_PASSWORD}"
+fi
+
+setup_mysql() {
+    echo "MySQL: starting service (best-effort)..."
+    sudo service mysql start >/dev/null 2>&1 || true
+    sudo systemctl start mysql >/dev/null 2>&1 || true
+
+    echo "MySQL: waiting for server..."
+    local ok=0
+    for i in $(seq 1 30); do
+        if sudo mysql $MYSQL_ROOT_ARGS -e "SELECT 1;" >/dev/null 2>&1; then
+            ok=1
+            break
+        fi
+        sleep 1
+    done
+    if [ "$ok" -ne 1 ]; then
+        echo "MySQL: failed to connect as root (check service/logs)."
+        exit 1
+    fi
+
+    if [ "$MINM_DB_RESET" = "1" ]; then
+        echo "MySQL: (re)creating database '$DB_NAME'..."
+        sudo mysql $MYSQL_ROOT_ARGS -e "DROP DATABASE IF EXISTS \`${DB_NAME}\`; CREATE DATABASE \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    else
+        echo "MySQL: ensuring database '$DB_NAME' exists..."
+        sudo mysql $MYSQL_ROOT_ARGS -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    fi
+
+    echo "MySQL: creating app user '$DB_USER'..."
+    sudo mysql $MYSQL_ROOT_ARGS -e "DROP USER IF EXISTS '${DB_USER}'@'%';"
+    sudo mysql $MYSQL_ROOT_ARGS -e "CREATE USER '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASSWORD}';"
+    sudo mysql $MYSQL_ROOT_ARGS -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%'; FLUSH PRIVILEGES;"
+
+    if [ "$MINM_DB_RESET" = "1" ]; then
+        echo "MySQL: loading schema from docs/database_schema.sql..."
+        sudo mysql $MYSQL_ROOT_ARGS "${DB_NAME}" < "./docs/database_schema.sql"
+    else
+        echo "MySQL: checking schema presence (required tables)..."
+        local missingTables
+        missingTables=$(sudo mysql $MYSQL_ROOT_ARGS "${DB_NAME}" -N -s -e "
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE table_schema='${DB_NAME}'
+              AND table_name IN ('users','contacts','chats','chat_participants','messages')
+        " || echo "0")
+
+        if [ "$missingTables" -ne "5" ]; then
+            echo "MySQL: some tables missing -> loading schema..."
+            sudo mysql $MYSQL_ROOT_ARGS "${DB_NAME}" < "./docs/database_schema.sql"
+        else
+            echo "MySQL: schema already exists (all required tables present)."
+        fi
+    fi
+
+    echo "MySQL: seeding users (idempotent, keep id=0)..."
+    sudo mysql $MYSQL_ROOT_ARGS "${DB_NAME}" -e "
+        SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO';
+        INSERT INTO users (id, username, password_hash, online) VALUES
+            (0, 'user0', 'test_hash', 0),
+            (1, 'user1', 'test_hash', 0),
+            (2, 'user2', 'test_hash', 0),
+            (3, 'user3', 'test_hash', 0),
+            (4, 'user4', 'test_hash', 0),
+            (5, 'user5', 'test_hash', 0)
+        ON DUPLICATE KEY UPDATE
+            username = VALUES(username),
+            password_hash = VALUES(password_hash),
+            online = VALUES(online);
+    "
+}
+
+export MINM_DB_ENABLED=1
+export MINM_DB_HOST="${MINM_DB_HOST}"
+export MINM_DB_PORT="${MINM_DB_PORT}"
+export MINM_DB_NAME="${DB_NAME}"
+export MINM_DB_USER="${DB_USER}"
+export MINM_DB_PASSWORD="${DB_PASSWORD}"
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Счетчики
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-# Массивы для хранения ID созданных чатов
 PRIVATE_CHAT_IDS=()
 GROUP_CHAT_IDS=()
 CHANNEL_CHAT_IDS=()
 
-# Функция для вывода заголовка теста
 print_test() {
     echo -e "\n${BLUE}=== $1 ===${NC}"
 }
 
-# Функция для вывода подзаголовка
 print_subtest() {
     echo -e "${CYAN}--- $1 ---${NC}"
 }
 
-# Функция для проверки успешности теста
 check_result() {
     local test_name="$1"
     local response="$2"
@@ -59,7 +140,6 @@ check_result() {
     fi
 }
 
-# Функция для выполнения curl запроса
 curl_request() {
     local method="$1"
     local endpoint="$2"
@@ -74,15 +154,12 @@ curl_request() {
     fi
 }
 
-# Функция для форматированного вывода JSON
 print_json() {
     echo "$1" | python3 -m json.tool 2>/dev/null || echo "$1"
 }
 
-# Функция для получения максимального ID чата (последнего созданного)
 get_last_chat_id() {
     local response=$(curl_request "GET" "/chats")
-    # Извлекаем максимальный ID чата из списка (последний созданный)
     echo "$response" | python3 -c "
 import sys, json
 try:
@@ -98,20 +175,19 @@ except Exception as e:
 " 2>/dev/null || echo "0"
 }
 
-# Проверка наличия бинарника
 if [ ! -f "$SERVER_BINARY" ]; then
     echo -e "${RED}Ошибка: Бинарник $SERVER_BINARY не найден!${NC}"
     echo "Сначала соберите проект: make build"
     exit 1
 fi
 
-# Проверка наличия curl
+setup_mysql
+
 if ! command -v curl &> /dev/null; then
     echo -e "${RED}Ошибка: curl не установлен!${NC}"
     exit 1
 fi
 
-# Проверка наличия python3
 if ! command -v python3 &> /dev/null; then
     echo -e "${YELLOW}Предупреждение: python3 не найден, JSON будет выводиться без форматирования${NC}"
 fi
@@ -121,17 +197,14 @@ echo -e "${GREEN}Тестирование сценария с чатами${NC}"
 echo -e "${GREEN}Порт: $PORT${NC}"
 echo -e "${GREEN}========================================${NC}"
 
-# Запуск сервера
 print_test "Запуск сервера"
 echo "Запускаю сервер на порту $PORT..."
 DISPLAY=:0 $SERVER_BINARY -p $PORT > /tmp/minm_server.log 2>&1 &
 SERVER_PID=$!
 
-# Ожидание запуска сервера
 echo "Ожидание запуска сервера..."
 sleep 1
 
-# Проверка, что сервер запустился
 if ! kill -0 $SERVER_PID 2>/dev/null; then
     echo -e "${RED}Ошибка: Сервер не запустился!${NC}"
     echo "Логи:"
@@ -139,7 +212,6 @@ if ! kill -0 $SERVER_PID 2>/dev/null; then
     exit 1
 fi
 
-# Проверка доступности сервера
 echo "Проверка доступности сервера..."
 MAX_RETRIES=10
 RETRY_COUNT=0
@@ -160,7 +232,6 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     exit 1
 fi
 
-# Функция очистки при выходе
 cleanup() {
     if [ -n "$SERVER_PID" ] && kill -0 $SERVER_PID 2>/dev/null; then
         echo -e "\n${YELLOW}Остановка сервера...${NC}"
@@ -176,9 +247,6 @@ cleanup() {
 
 trap cleanup EXIT
 
-# ============================================
-# ЭТАП 1: Подготовка - создание контактов
-# ============================================
 print_test "ЭТАП 1: Подготовка - создание контактов"
 
 print_subtest "Создание контактов для тестирования (владелец — пользователь 0)"
@@ -198,9 +266,6 @@ RESPONSE=$(curl_request "POST" "/contacts" '{"ownerId": 0, "contactId": 5, "cont
 print_json "$RESPONSE"
 check_result "Создание контакта Диана" "$RESPONSE" '"status": "success"'
 
-# ============================================
-# ЭТАП 2: Создание приватных чатов
-# ============================================
 print_test "ЭТАП 2: Создание приватных чатов (PRIVATE = 0)"
 
 print_subtest "Приватный чат между пользователем 0 и Алисой (ID: 2)"
@@ -225,9 +290,6 @@ if [ -n "$CHAT_ID" ] && [ "$CHAT_ID" != "0" ]; then
     echo -e "${GREEN}Создан приватный чат ID: $CHAT_ID${NC}"
 fi
 
-# ============================================
-# ЭТАП 3: Создание групповых чатов
-# ============================================
 print_test "ЭТАП 3: Создание групповых чатов (GROUP = 1)"
 
 print_subtest "Групповой чат 'Работа' с участниками 0, 2, 3"
@@ -252,9 +314,6 @@ if [ -n "$CHAT_ID" ] && [ "$CHAT_ID" != "0" ]; then
     echo -e "${GREEN}Создан групповой чат ID: $CHAT_ID${NC}"
 fi
 
-# ============================================
-# ЭТАП 4: Создание каналов
-# ============================================
 print_test "ЭТАП 4: Создание каналов (CHANNEL = 2)"
 
 print_subtest "Канал 'Новости' с участниками 0, 2, 3, 4, 5"
@@ -279,9 +338,6 @@ if [ -n "$CHAT_ID" ] && [ "$CHAT_ID" != "0" ]; then
     echo -e "${GREEN}Создан канал ID: $CHAT_ID${NC}"
 fi
 
-# ============================================
-# ЭТАП 5: Отправка сообщений в приватные чаты
-# ============================================
 print_test "ЭТАП 5: Отправка сообщений в приватные чаты"
 
 if [ ${#PRIVATE_CHAT_IDS[@]} -gt 0 ]; then
@@ -320,9 +376,6 @@ if [ ${#PRIVATE_CHAT_IDS[@]} -gt 1 ]; then
     check_result "Сообщение 2 в приватный чат 2" "$RESPONSE" '"status": "success"'
 fi
 
-# ============================================
-# ЭТАП 6: Отправка сообщений в групповые чаты
-# ============================================
 print_test "ЭТАП 6: Отправка сообщений в групповые чаты"
 
 if [ ${#GROUP_CHAT_IDS[@]} -gt 0 ]; then
@@ -373,9 +426,6 @@ if [ ${#GROUP_CHAT_IDS[@]} -gt 1 ]; then
     check_result "Сообщение 4 в групповой чат 'Друзья'" "$RESPONSE" '"status": "success"'
 fi
 
-# ============================================
-# ЭТАП 7: Отправка сообщений в каналы
-# ============================================
 print_test "ЭТАП 7: Отправка сообщений в каналы"
 
 if [ ${#CHANNEL_CHAT_IDS[@]} -gt 0 ]; then
@@ -408,18 +458,12 @@ if [ ${#CHANNEL_CHAT_IDS[@]} -gt 1 ]; then
     check_result "Сообщение 2 в канал 'Объявления'" "$RESPONSE" '"status": "success"'
 fi
 
-# ============================================
-# ЭТАП 7.1: Рассылка сообщения во все чаты
-# ============================================
 print_test "ЭТАП 7.1: Рассылка сообщения во все чаты (type: 1 = BROADCAST)"
 
 RESPONSE=$(curl_request "POST" "/messages" '{"sender_id": 0, "type": 1, "content": "📢 Важное объявление для всех: Завтра технические работы с 10:00 до 12:00. Пожалуйста, сохраните данные!"}')
 print_json "$RESPONSE"
 check_result "Рассылка во все чаты" "$RESPONSE" '"status": "success"'
 
-# ============================================
-# ЭТАП 8: Итоговое состояние
-# ============================================
 print_test "ЭТАП 8: Итоговое состояние всех данных"
 
 echo -e "\n${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -438,7 +482,6 @@ print_json "$RESPONSE"
 CHAT_COUNT=$(echo "$RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('count', 0))" 2>/dev/null || echo "?")
 echo -e "${GREEN}Всего чатов: $CHAT_COUNT${NC}"
 
-# Подсчет чатов по типам
 PRIVATE_COUNT=$(echo "$RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); chats=data.get('chats', []); print(sum(1 for c in chats if c.get('type') == 0))" 2>/dev/null || echo "?")
 GROUP_COUNT=$(echo "$RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); chats=data.get('chats', []); print(sum(1 for c in chats if c.get('type') == 1))" 2>/dev/null || echo "?")
 CHANNEL_COUNT=$(echo "$RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); chats=data.get('chats', []); print(sum(1 for c in chats if c.get('type') == 2))" 2>/dev/null || echo "?")
@@ -455,7 +498,6 @@ print_json "$RESPONSE"
 MESSAGE_COUNT=$(echo "$RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('count', 0))" 2>/dev/null || echo "?")
 echo -e "${GREEN}Всего сообщений: $MESSAGE_COUNT${NC}"
 
-# Подсчет сообщений по чатам
 echo -e "\n${YELLOW}Распределение сообщений по чатам:${NC}"
 if [ -n "$RESPONSE" ]; then
     echo "$RESPONSE" | python3 -c "
@@ -474,7 +516,6 @@ except:
 " 2>/dev/null || echo "  Не удалось подсчитать"
 fi
 
-# Итоговая статистика
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}📊 ИТОГОВАЯ СТАТИСТИКА${NC}"
 echo -e "${GREEN}========================================${NC}"
@@ -493,10 +534,8 @@ echo -e "    📢 Каналов: $CHANNEL_COUNT"
 echo -e "  📨 Сообщения: $MESSAGE_COUNT"
 echo -e "${GREEN}========================================${NC}"
 
-# Отключаем автоматическую очистку при EXIT
 trap - EXIT
 
-# Информация о сервере
 echo -e "\n${YELLOW}========================================${NC}"
 echo -e "${YELLOW}Сервер продолжает работать${NC}"
 echo -e "${YELLOW}========================================${NC}"
@@ -504,13 +543,10 @@ echo -e "Сервер доступен по адресу: ${GREEN}${BASE_URL}${N
 echo -e "PID сервера: ${GREEN}${SERVER_PID}${NC}"
 echo -e "\n${YELLOW}Нажмите Enter для остановки сервера...${NC}"
 
-# Ожидание ввода пользователя
 read -r
 
-# Остановка сервера после ввода
 cleanup
 
-# Возвращаем код выхода в зависимости от результатов тестов
 if [ $TESTS_FAILED -eq 0 ]; then
     exit 0
 else

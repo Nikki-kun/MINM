@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QVector>
+#include <QString>
 #include <QJsonObject>
 #include <QJsonArray>
 #include "core/contact.h"
@@ -45,6 +46,17 @@ private:
     QVector<Contact>& m_contacts;
     QVector<std::shared_ptr<Chat>>& m_chats;
     QVector<std::shared_ptr<Message<std::string>>>& m_messages;
+
+    bool m_dbEnabled = false;
+    QString m_dbHost;
+    int m_dbPort = 3306;
+    QString m_dbName;
+    QString m_dbUser;
+    QString m_dbPassword;
+
+    void configureDbFromEnv();
+    bool loadFromDb();
+    bool dbIsReady() const { return m_dbEnabled; }
     
     QJsonObject handleGetContacts();
     QJsonObject handlePostContacts(const QJsonObject& data);

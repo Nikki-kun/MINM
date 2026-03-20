@@ -4,6 +4,46 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QDateTime>
+#include <QSqlDatabase>
+#include <QSqlError>
+#include <QSqlQuery>
+#include <QThread>
+#include <QVariant>
+
+namespace {
+    QString threadConnectionName() {
+        const auto tid = reinterpret_cast<quintptr>(QThread::currentThreadId());
+        return QString("minm_mysql_conn_%1").arg(tid, 0, 16);
+    }
+
+    QSqlDatabase ensureDbOpen(const QString& host,
+                               int port,
+                               const QString& dbName,
+                               const QString& user,
+                               const QString& password) {
+        const QString connName = threadConnectionName();
+
+        QSqlDatabase db;
+        if (QSqlDatabase::contains(connName)) {
+            db = QSqlDatabase::database(connName);
+        } else {
+            db = QSqlDatabase::addDatabase("QMYSQL", connName);
+        }
+
+        db.setHostName(host);
+        db.setPort(port);
+        db.setDatabaseName(dbName);
+        db.setUserName(user);
+        db.setPassword(password);
+
+        if (!db.open()) {
+            qWarning() << "MySQL open failed:" << db.lastError().text();
+            return QSqlDatabase();
+        }
+
+        return db;
+    }
+}
 
 MessageManager::MessageManager(QVector<Contact>& contacts,
                               QVector<std::shared_ptr<Chat>>& chats,
@@ -14,6 +54,166 @@ MessageManager::MessageManager(QVector<Contact>& contacts,
     , m_chats(chats)
     , m_messages(messages)
 {
+    configureDbFromEnv();
+    if (m_dbEnabled) {
+        loadFromDb();
+    }
+}
+
+void MessageManager::configureDbFromEnv() {
+    const QByteArray enabledRaw = qgetenv("MINM_DB_ENABLED");
+    if (enabledRaw.isEmpty()) {
+        m_dbEnabled = false;
+        return;
+    }
+
+    const QByteArray enabledLower = enabledRaw.toLower();
+    m_dbEnabled = (enabledLower == "1" || enabledLower == "true" || enabledLower == "yes");
+    if (!m_dbEnabled) return;
+
+    m_dbHost = QString::fromUtf8(qgetenv("MINM_DB_HOST"));
+    if (m_dbHost.isEmpty()) m_dbHost = "127.0.0.1";
+
+    const QByteArray portRaw = qgetenv("MINM_DB_PORT");
+    m_dbPort = portRaw.isEmpty() ? 3306 : portRaw.toInt();
+
+    m_dbName = QString::fromUtf8(qgetenv("MINM_DB_NAME"));
+    if (m_dbName.isEmpty()) m_dbName = "minm_test";
+
+    m_dbUser = QString::fromUtf8(qgetenv("MINM_DB_USER"));
+    if (m_dbUser.isEmpty()) m_dbUser = "minm";
+
+    m_dbPassword = QString::fromUtf8(qgetenv("MINM_DB_PASSWORD"));
+}
+
+bool MessageManager::loadFromDb() {
+    if (!m_dbEnabled) return false;
+
+    auto db = ensureDbOpen(m_dbHost, m_dbPort, m_dbName, m_dbUser, m_dbPassword);
+    if (!db.isValid() || !db.isOpen()) {
+        m_dbEnabled = false;
+        qWarning() << "MINM: MySQL connection failed, disabling DB persistence. Drivers:"
+                   << QSqlDatabase::drivers();
+        return false;
+    }
+
+    auto parseDt = [](const QVariant& v) -> QDateTime {
+        QDateTime dt = v.toDateTime();
+        if (dt.isValid()) return dt;
+        const QString s = v.toString();
+        if (s.isEmpty()) return QDateTime{};
+        dt = QDateTime::fromString(s, "yyyy-MM-dd HH:mm:ss");
+        if (dt.isValid()) return dt;
+        return QDateTime{};
+    };
+
+    auto toTp = [](const QDateTime& dt) -> std::chrono::system_clock::time_point {
+        if (!dt.isValid()) return std::chrono::system_clock::now();
+        const qint64 ms = dt.toMSecsSinceEpoch();
+        return std::chrono::system_clock::time_point{std::chrono::milliseconds(ms)};
+    };
+
+    m_contacts.clear();
+    m_chats.clear();
+    m_messages.clear();
+
+    {
+        QSqlQuery q(db);
+        if (!q.exec("SELECT id, owner_id, contact_id, contact_name, added_date FROM contacts ORDER BY id")) {
+            qWarning() << "Contacts load failed:" << q.lastError().text();
+            return false;
+        }
+        int loadedContacts = 0;
+        while (q.next()) {
+            contact_id id = q.value(0).toInt();
+            user_id ownerId = q.value(1).toInt();
+            user_id contactId = q.value(2).toInt();
+            QString contactName = q.value(3).toString();
+            QDateTime addedDate = parseDt(q.value(4));
+
+            m_contacts.append(Contact(id, ownerId, contactId, contactName, addedDate));
+            loadedContacts++;
+        }
+        qWarning() << "MINM: loaded contacts rows:" << loadedContacts;
+    }
+
+    {
+        QSqlQuery q(db);
+        if (!q.exec("SELECT id, type, created_date FROM chats ORDER BY id")) {
+            qWarning() << "Chats load failed:" << q.lastError().text();
+            return false;
+        }
+        int loadedChats = 0;
+
+        while (q.next()) {
+            chat_id id = q.value(0).toInt();
+            chat_type type = static_cast<chat_type>(q.value(1).toInt());
+            QDateTime createdDate = parseDt(q.value(2));
+            auto createdTp = toTp(createdDate);
+
+            std::vector<user_id> participants;
+            {
+                QSqlQuery qPart(db);
+                qPart.prepare("SELECT user_id FROM chat_participants WHERE chat_id=? ORDER BY joined_at ASC");
+                qPart.addBindValue(id);
+                if (qPart.exec()) {
+                    while (qPart.next()) {
+                        participants.push_back(qPart.value(0).toInt());
+                    }
+                } else {
+                    qWarning() << "Participants load failed:" << qPart.lastError().text();
+                    return false;
+                }
+            }
+
+            auto emptyMessages = std::vector<message_id>{};
+            m_chats.append(std::make_shared<Chat>(id, type, participants, emptyMessages, createdTp));
+            loadedChats++;
+        }
+        qWarning() << "MINM: loaded chats rows:" << loadedChats;
+    }
+
+    {
+        QSqlQuery q(db);
+        if (!q.exec("SELECT id, sender_id, chat_id, content, type, status, timestamp FROM messages ORDER BY timestamp ASC")) {
+            qWarning() << "Messages load failed:" << q.lastError().text();
+            return false;
+        }
+
+        int loadedMessages = 0;
+        while (q.next()) {
+            message_id id = q.value(0).toInt();
+            user_id senderId = q.value(1).toInt();
+            QVariant chatIdVar = q.value(2);
+            chat_id receiverId = chatIdVar.isNull() ? -1 : chatIdVar.toInt();
+            QString content = q.value(3).toString();
+
+            message_type type = static_cast<message_type>(q.value(4).toInt());
+            message_status status = static_cast<message_status>(q.value(5).toInt());
+            QDateTime tsDt = parseDt(q.value(6));
+            auto tsTp = toTp(tsDt);
+
+            auto msg = std::make_shared<Message<std::string>>(id, senderId, receiverId, content.toStdString(), tsTp, type);
+            msg->setStatus(status);
+            m_messages.append(msg);
+            loadedMessages++;
+        }
+        qWarning() << "MINM: loaded messages rows:" << loadedMessages;
+    }
+
+    for (const auto& chatPtr : m_chats) {
+        if (!chatPtr) continue;
+
+        for (const auto& msgPtr : m_messages) {
+            if (!msgPtr) continue;
+            if (msgPtr->type == MESSAGE_BROADCAST || msgPtr->receiver_id == chatPtr->id) {
+                chatPtr->addMessage(msgPtr->id);
+            }
+        }
+    }
+
+    qWarning() << "MINM: after attach, chats:" << m_chats.size() << "messages in memory:" << m_messages.size();
+    return true;
 }
 
 QJsonObject MessageManager::handleRequest(const QString& method, const QString& path, const QJsonObject& data)
@@ -56,10 +256,43 @@ bool MessageManager::addContact(const QJsonObject& data)
         return false;
     }
     
-    contact_id id = m_contacts.isEmpty() ? 1 : m_contacts.last().id + 1;
     user_id ownerId = data["ownerId"].toInt();
     user_id contactId = data["contactId"].toInt();
     QString contactName = data["contactName"].toString();
+
+    if (m_dbEnabled) {
+        auto db = ensureDbOpen(m_dbHost, m_dbPort, m_dbName, m_dbUser, m_dbPassword);
+        if (!db.isValid() || !db.isOpen()) {
+            m_dbEnabled = false;
+            qWarning() << "MINM: MySQL open failed, switching to in-memory.";
+        } else {
+            QSqlQuery q(db);
+            q.prepare("INSERT INTO contacts (owner_id, contact_id, contact_name) VALUES (?, ?, ?)");
+            q.addBindValue(ownerId);
+            q.addBindValue(contactId);
+            q.addBindValue(contactName);
+
+            if (!q.exec()) {
+                qWarning() << "INSERT contacts failed:" << q.lastError().text();
+                return false;
+            }
+
+            if (!loadFromDb()) {
+                if (m_dbEnabled) return false;
+            } else {
+                for (const auto& c : m_contacts) {
+                    if (c.ownerId == ownerId && c.contactId == contactId) {
+                        emit contactAdded(c);
+                        return true;
+                    }
+                }
+                emit contactAdded(Contact(0, ownerId, contactId, contactName));
+                return true;
+            }
+        }
+    }
+
+    contact_id id = m_contacts.isEmpty() ? 1 : m_contacts.last().id + 1;
     
     Contact newContact(id, ownerId, contactId, contactName);
     m_contacts.append(newContact);
@@ -86,7 +319,6 @@ bool MessageManager::addChat(const QJsonObject& data)
         return false;
     }
     
-    chat_id id = m_chats.isEmpty() ? 1 : m_chats.last()->id + 1;
     chat_type type = static_cast<chat_type>(data["type"].toInt());
     
     QJsonArray participantsArray = data["participants"].toArray();
@@ -94,6 +326,49 @@ bool MessageManager::addChat(const QJsonObject& data)
     for (const auto& participant : participantsArray) {
         participants.push_back(participant.toInt());
     }
+
+    if (m_dbEnabled) {
+        auto db = ensureDbOpen(m_dbHost, m_dbPort, m_dbName, m_dbUser, m_dbPassword);
+        if (!db.isValid() || !db.isOpen()) {
+            m_dbEnabled = false;
+            qWarning() << "MINM: MySQL open failed, switching to in-memory.";
+        } else {
+            QSqlQuery q(db);
+            q.prepare("INSERT INTO chats (type) VALUES (?)");
+            q.addBindValue(static_cast<int>(type));
+            if (!q.exec()) {
+                qWarning() << "INSERT chats failed:" << q.lastError().text();
+                return false;
+            }
+
+            const int insertedId = q.lastInsertId().toInt();
+
+            for (user_id u : participants) {
+                QSqlQuery qp(db);
+                qp.prepare("INSERT INTO chat_participants (chat_id, user_id) VALUES (?, ?)");
+                qp.addBindValue(insertedId);
+                qp.addBindValue(u);
+                if (!qp.exec()) {
+                    qWarning() << "INSERT chat_participants failed:" << qp.lastError().text();
+                    return false;
+                }
+            }
+
+            if (!loadFromDb()) {
+                if (m_dbEnabled) return false;
+            } else {
+                for (const auto& c : m_chats) {
+                    if (c && c->id == insertedId) {
+                        emit chatAdded(c);
+                        return true;
+                    }
+                }
+                return true;
+            }
+        }
+    }
+
+    chat_id id = m_chats.isEmpty() ? 1 : m_chats.last()->id + 1;
     
     auto newChat = std::make_shared<Chat>(id, type, participants);
     m_chats.append(newChat);
@@ -125,6 +400,54 @@ bool MessageManager::addMessage(const QJsonObject& data)
 
     if (msgType == MESSAGE_NORMAL && !data.contains("receiver_id")) {
         return false;
+    }
+
+    if (m_dbEnabled) {
+        auto db = ensureDbOpen(m_dbHost, m_dbPort, m_dbName, m_dbUser, m_dbPassword);
+        if (!db.isValid() || !db.isOpen()) {
+            m_dbEnabled = false;
+            qWarning() << "MINM: MySQL open failed, switching to in-memory.";
+        } else {
+
+            user_id sender_id = data["sender_id"].toInt();
+            const std::string content = data["content"].toString().toStdString();
+
+            QSqlQuery q(db);
+            q.prepare("INSERT INTO messages (sender_id, chat_id, content, status, type) VALUES (?, ?, ?, ?, ?)");
+            q.addBindValue(sender_id);
+
+            if (msgType == MESSAGE_BROADCAST) {
+                q.addBindValue(QVariant());
+            } else {
+                q.addBindValue(receiver_id);
+            }
+
+            q.addBindValue(QString::fromStdString(content));
+            q.addBindValue(static_cast<int>(SENT));
+            q.addBindValue(static_cast<int>(msgType));
+
+            if (!q.exec()) {
+                qWarning() << "INSERT messages failed:" << q.lastError().text();
+                return false;
+            }
+
+            if (!loadFromDb()) {
+                if (m_dbEnabled) return false;
+            } else {
+                const int insertedId = q.lastInsertId().toInt();
+                for (const auto& m : m_messages) {
+                    if (m && m->id == insertedId) {
+                        emit messageAdded(m);
+                        return true;
+                    }
+                }
+
+                const chat_id receiverForMsg = (msgType == MESSAGE_BROADCAST) ? -1 : receiver_id;
+                auto dummy = std::make_shared<Message<std::string>>(0, sender_id, receiverForMsg, content, msgType);
+                emit messageAdded(dummy);
+                return true;
+            }
+        }
     }
 
     message_id id = m_messages.isEmpty() ? 1 : m_messages.last()->id + 1;
@@ -182,6 +505,7 @@ bool MessageManager::removeMessage(message_id id)
 
 QJsonObject MessageManager::handleGetContacts()
 {
+    if (m_dbEnabled) loadFromDb();
     QJsonObject response;
     QJsonArray contactsArray;
     
@@ -218,6 +542,7 @@ QJsonObject MessageManager::handlePostContacts(const QJsonObject& data)
 
 QJsonObject MessageManager::handleGetChats()
 {
+    if (m_dbEnabled) loadFromDb();
     QJsonObject response;
     QJsonArray chatsArray;
     
@@ -265,6 +590,7 @@ QJsonObject MessageManager::handlePostChats(const QJsonObject& data)
 
 QJsonObject MessageManager::handleGetMessages()
 {
+    if (m_dbEnabled) loadFromDb();
     QJsonObject response;
     QJsonArray messagesArray;
     
