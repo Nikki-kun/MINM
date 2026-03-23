@@ -111,34 +111,46 @@ void WidgetManager::setupUI()
     QVBoxLayout *detailsLayout = new QVBoxLayout(detailsWidget);
     detailsLayout->setSpacing(8);
     detailsLayout->setContentsMargins(0, 0, 0, 0);
-    m_detailsLabel = new QLabel("ℹ️ Детали", detailsWidget);
+    m_detailsLabel = new QLabel("ℹ️ Детали выбранного элемента", detailsWidget);
     m_detailsLabel->setStyleSheet(Ui::panelHeaderStyle());
     m_messageDetails = new QTextEdit(detailsWidget);
     m_messageDetails->setReadOnly(true);
-    m_messageDetails->setMaximumHeight(150);
+    m_messageDetails->setMinimumHeight(190);
     m_messageDetails->setStyleSheet(Ui::detailsTextEditStyle());
+
+    QLabel *profileSettingsLabel = new QLabel("⚙️ Настройки профиля в деталях сообщений", detailsWidget);
+    profileSettingsLabel->setStyleSheet("QLabel {"
+                                        "font-weight: 600;"
+                                        "font-size: 10pt;"
+                                        "color: #d4d4d4;"
+                                        "padding: 8px 10px;"
+                                        "background-color: #2d2d30;"
+                                        "border: 1px solid #3e3e42;"
+                                        "border-radius: 4px;"
+                                        "}");
 
     QHBoxLayout *participantControlsTop = new QHBoxLayout();
     m_participantIdInput = new QLineEdit(detailsWidget);
-    m_participantIdInput->setPlaceholderText("Participant user_id");
+    m_participantIdInput->setPlaceholderText("ID пользователя");
     m_roleCombo = new QComboBox(detailsWidget);
-    m_roleCombo->addItem("Owner", static_cast<int>(CHAT_ROLE_OWNER));
-    m_roleCombo->addItem("Admin", static_cast<int>(CHAT_ROLE_ADMIN));
-    m_roleCombo->addItem("Member", static_cast<int>(CHAT_ROLE_MEMBER));
-    m_setRoleButton = new QPushButton("Set role", detailsWidget);
+    m_roleCombo->addItem("Владелец", static_cast<int>(CHAT_ROLE_OWNER));
+    m_roleCombo->addItem("Администратор", static_cast<int>(CHAT_ROLE_ADMIN));
+    m_roleCombo->addItem("Участник", static_cast<int>(CHAT_ROLE_MEMBER));
+    m_setRoleButton = new QPushButton("Назначить роль", detailsWidget);
     participantControlsTop->addWidget(m_participantIdInput, 1);
     participantControlsTop->addWidget(m_roleCombo, 1);
     participantControlsTop->addWidget(m_setRoleButton, 0);
 
     QHBoxLayout *participantControlsBottom = new QHBoxLayout();
-    m_banButton = new QPushButton("Ban", detailsWidget);
-    m_leaveButton = new QPushButton("Leave", detailsWidget);
-    m_activateButton = new QPushButton("Activate", detailsWidget);
+    m_banButton = new QPushButton("Заблокировать", detailsWidget);
+    m_leaveButton = new QPushButton("Выход из чата", detailsWidget);
+    m_activateButton = new QPushButton("Активировать", detailsWidget);
     participantControlsBottom->addWidget(m_banButton);
     participantControlsBottom->addWidget(m_leaveButton);
     participantControlsBottom->addWidget(m_activateButton);
     detailsLayout->addWidget(m_detailsLabel);
     detailsLayout->addWidget(m_messageDetails);
+    detailsLayout->addWidget(profileSettingsLabel);
     detailsLayout->addLayout(participantControlsTop);
     detailsLayout->addLayout(participantControlsBottom);
     detailsWidget->setLayout(detailsLayout);

@@ -145,6 +145,7 @@ void WidgetManager::onContactSelected(int index)
 {
     if (index < 0 || index >= m_contacts.size()) return;
     const Contact& contact = m_contacts[index];
+    m_participantIdInput->setText(QString::number(contact.contactId));
     m_selectedContactUserId = contact.contactId;
     m_selectedChatId = -1;
     m_chatsTree->clearSelection();
@@ -226,6 +227,7 @@ void WidgetManager::onMessageSelected(int row)
     auto it = std::find_if(m_messages.begin(), m_messages.end(), [msgId](const auto& m) { return m->id == msgId; });
     if (it == m_messages.end()) return;
     const auto& message = *it;
+    m_participantIdInput->setText(QString::number(message->sender_id));
     emit messageSelected(message->id);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(message->timestamp.time_since_epoch()).count();
     QDateTime timestamp = QDateTime::fromMSecsSinceEpoch(ms);
@@ -245,7 +247,8 @@ void WidgetManager::onMessageSelected(int row)
             "<div style='background-color: #1e1e1e; padding: 8px; border-left: 3px solid #0078d4; margin: 8px 0; border-radius: 4px;'>"
             "<span style='color: #d4d4d4;'>%4</span></div>"
             "<p><b style='color: #ce9178;'>Время:</b> <span style='color: #858585;'>🕐 %5</span></p>"
-            "<p><b style='color: #ce9178;'>Статус:</b> <span style='color: %6;'>%7 %8</span></p></div>")
+            "<p><b style='color: #ce9178;'>Статус:</b> <span style='color: %6;'>%7 %8</span></p>"
+            "<p style='margin-top: 10px; color: #569cd6;'>⚙️ Настройки профиля доступны ниже в этом же блоке.</p></div>")
         .arg(message->id).arg(message->sender_id).arg(receiverStr)
         .arg(QString::fromStdString(message->getContent()).toHtmlEscaped())
         .arg(timestamp.toString("dd.MM.yyyy HH:mm:ss"))
