@@ -33,6 +33,18 @@ typedef enum {
     CHANNEL
 } chat_type;
 
+typedef enum {
+    CHAT_ROLE_OWNER = 0,
+    CHAT_ROLE_ADMIN = 1,
+    CHAT_ROLE_MEMBER = 2
+} chat_participant_role;
+
+typedef enum {
+    CHAT_MEMBER_ACTIVE = 0,
+    CHAT_MEMBER_LEFT = 1,
+    CHAT_MEMBER_BANNED = 2
+} chat_participant_status;
+
 constexpr size_t MAX_USERNAME_LENGTH = 100;
 constexpr size_t MAX_CONTACT_NAME_LENGTH = 100;
 constexpr size_t MAX_PASSWORD_LENGTH = 100;

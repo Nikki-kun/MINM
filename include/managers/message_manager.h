@@ -28,6 +28,7 @@ public:
     bool removeChat(chat_id id);
     bool addMessage(const QJsonObject& data);
     bool removeMessage(message_id id);
+    bool updateChatParticipant(const QJsonObject& data);
     
     QVector<Contact> getContacts() const;
     QVector<std::shared_ptr<Chat>> getChats() const;
@@ -64,6 +65,8 @@ private:
     QJsonObject handlePostChats(const QJsonObject& data);
     QJsonObject handleGetMessages();
     QJsonObject handlePostMessages(const QJsonObject& data);
+    QJsonObject handleGetChatParticipants(const QJsonObject& data);
+    QJsonObject handlePostChatParticipants(const QJsonObject& data);
 };
 
 #endif

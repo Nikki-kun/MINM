@@ -43,6 +43,20 @@ namespace {
 
         return db;
     }
+
+    chat_participant_role toRole(int value) {
+        if (value < static_cast<int>(CHAT_ROLE_OWNER) || value > static_cast<int>(CHAT_ROLE_MEMBER)) {
+            return CHAT_ROLE_MEMBER;
+        }
+        return static_cast<chat_participant_role>(value);
+    }
+
+    chat_participant_status toStatus(int value) {
+        if (value < static_cast<int>(CHAT_MEMBER_ACTIVE) || value > static_cast<int>(CHAT_MEMBER_BANNED)) {
+            return CHAT_MEMBER_ACTIVE;
+        }
+        return static_cast<chat_participant_status>(value);
+    }
 }
 
 MessageManager::MessageManager(QVector<Contact>& contacts,
@@ -119,7 +133,7 @@ bool MessageManager::loadFromDb() {
 
     {
         QSqlQuery q(db);
-        if (!q.exec("SELECT id, owner_id, contact_id, contact_name, added_date FROM contacts ORDER BY id")) {
+        if (!q.exec("SELECT contact_row_id, owner_id, contact_id, contact_name, contact_added_at FROM contacts ORDER BY contact_row_id")) {
             qWarning() << "Contacts load failed:" << q.lastError().text();
             return false;
         }
@@ -139,7 +153,7 @@ bool MessageManager::loadFromDb() {
 
     {
         QSqlQuery q(db);
-        if (!q.exec("SELECT id, type, created_date FROM chats ORDER BY id")) {
+        if (!q.exec("SELECT chat_id, type, chat_created_at FROM chats ORDER BY chat_id")) {
             qWarning() << "Chats load failed:" << q.lastError().text();
             return false;
         }
@@ -154,11 +168,16 @@ bool MessageManager::loadFromDb() {
             std::vector<user_id> participants;
             {
                 QSqlQuery qPart(db);
-                qPart.prepare("SELECT user_id FROM chat_participants WHERE chat_id=? ORDER BY joined_at ASC");
+                qPart.prepare("SELECT user_id, participant_role, membership_status, joined_at, left_at, banned_at "
+                              "FROM chat_participants WHERE chat_id=? ORDER BY joined_at ASC");
                 qPart.addBindValue(id);
                 if (qPart.exec()) {
                     while (qPart.next()) {
-                        participants.push_back(qPart.value(0).toInt());
+                        const user_id participantId = qPart.value(0).toInt();
+                        const chat_participant_status status = toStatus(qPart.value(2).toInt());
+                        if (status == CHAT_MEMBER_ACTIVE) {
+                            participants.push_back(participantId);
+                        }
                     }
                 } else {
                     qWarning() << "Participants load failed:" << qPart.lastError().text();
@@ -167,7 +186,33 @@ bool MessageManager::loadFromDb() {
             }
 
             auto emptyMessages = std::vector<message_id>{};
-            m_chats.append(std::make_shared<Chat>(id, type, participants, emptyMessages, createdTp));
+            auto chat = std::make_shared<Chat>(id, type, participants, emptyMessages, createdTp);
+            {
+                QSqlQuery qPartMeta(db);
+                qPartMeta.prepare("SELECT user_id, participant_role, membership_status, joined_at, left_at, banned_at "
+                                  "FROM chat_participants WHERE chat_id=? ORDER BY joined_at ASC");
+                qPartMeta.addBindValue(id);
+                if (!qPartMeta.exec()) {
+                    qWarning() << "Participants meta load failed:" << qPartMeta.lastError().text();
+                    return false;
+                }
+
+                while (qPartMeta.next()) {
+                    const user_id participantId = qPartMeta.value(0).toInt();
+                    ChatParticipantInfo info;
+                    info.role = toRole(qPartMeta.value(1).toInt());
+                    info.status = toStatus(qPartMeta.value(2).toInt());
+                    info.joined_at = toTp(parseDt(qPartMeta.value(3)));
+
+                    const QDateTime leftAt = parseDt(qPartMeta.value(4));
+                    if (leftAt.isValid()) info.left_at = toTp(leftAt);
+                    const QDateTime bannedAt = parseDt(qPartMeta.value(5));
+                    if (bannedAt.isValid()) info.banned_at = toTp(bannedAt);
+
+                    chat->setParticipantInfo(participantId, info);
+                }
+            }
+            m_chats.append(chat);
             loadedChats++;
         }
         qWarning() << "MINM: loaded chats rows:" << loadedChats;
@@ -175,7 +220,7 @@ bool MessageManager::loadFromDb() {
 
     {
         QSqlQuery q(db);
-        if (!q.exec("SELECT id, sender_id, chat_id, content, type, status, timestamp FROM messages ORDER BY timestamp ASC")) {
+        if (!q.exec("SELECT message_id, sender_id, chat_id, content, type, status, message_created_at FROM messages ORDER BY message_created_at ASC")) {
             qWarning() << "Messages load failed:" << q.lastError().text();
             return false;
         }
@@ -227,6 +272,8 @@ QJsonObject MessageManager::handleRequest(const QString& method, const QString& 
             response = handleGetChats();
         } else if (path == "/messages") {
             response = handleGetMessages();
+        } else if (path == "/chat-participants") {
+            response = handleGetChatParticipants(data);
         } else {
             response["error"] = "Unknown endpoint";
         }
@@ -237,6 +284,8 @@ QJsonObject MessageManager::handleRequest(const QString& method, const QString& 
             response = handlePostChats(data);
         } else if (path == "/messages") {
             response = handlePostMessages(data);
+        } else if (path == "/chat-participants") {
+            response = handlePostChatParticipants(data);
         } else {
             response["error"] = "Unknown endpoint";
         }
@@ -343,11 +392,14 @@ bool MessageManager::addChat(const QJsonObject& data)
 
             const int insertedId = q.lastInsertId().toInt();
 
+            const user_id ownerId = participants.empty() ? -1 : participants.front();
             for (user_id u : participants) {
                 QSqlQuery qp(db);
-                qp.prepare("INSERT INTO chat_participants (chat_id, user_id) VALUES (?, ?)");
+                qp.prepare("INSERT INTO chat_participants (chat_id, user_id, participant_role, membership_status) VALUES (?, ?, ?, ?)");
                 qp.addBindValue(insertedId);
                 qp.addBindValue(u);
+                qp.addBindValue(static_cast<int>(u == ownerId ? CHAT_ROLE_OWNER : CHAT_ROLE_MEMBER));
+                qp.addBindValue(static_cast<int>(CHAT_MEMBER_ACTIVE));
                 if (!qp.exec()) {
                     qWarning() << "INSERT chat_participants failed:" << qp.lastError().text();
                     return false;
@@ -371,6 +423,14 @@ bool MessageManager::addChat(const QJsonObject& data)
     chat_id id = m_chats.isEmpty() ? 1 : m_chats.last()->id + 1;
     
     auto newChat = std::make_shared<Chat>(id, type, participants);
+    if (!participants.empty()) {
+        for (const auto participant : participants) {
+            ChatParticipantInfo info;
+            info.role = (participant == participants.front()) ? CHAT_ROLE_OWNER : CHAT_ROLE_MEMBER;
+            info.status = CHAT_MEMBER_ACTIVE;
+            newChat->setParticipantInfo(participant, info);
+        }
+    }
     m_chats.append(newChat);
     
     emit chatAdded(newChat);
@@ -629,6 +689,143 @@ QJsonObject MessageManager::handlePostMessages(const QJsonObject& data)
         response["message"] = "Failed to add message";
     }
     
+    return response;
+}
+
+bool MessageManager::updateChatParticipant(const QJsonObject& data)
+{
+    if (!data.contains("chatId") || !data.contains("userId") || !data.contains("action")) {
+        return false;
+    }
+
+    const chat_id chatId = data["chatId"].toInt();
+    const user_id participantId = data["userId"].toInt();
+    const QString action = data["action"].toString().trimmed().toLower();
+
+    auto chatIt = std::find_if(m_chats.begin(), m_chats.end(), [chatId](const auto& c) { return c && c->id == chatId; });
+    if (chatIt == m_chats.end()) return false;
+
+    auto chat = *chatIt;
+    ChatParticipantInfo info = chat->getParticipantInfo(participantId).value_or(ChatParticipantInfo{});
+
+    if (action == "set_role") {
+        if (!data.contains("role")) return false;
+        info.role = toRole(data["role"].toInt());
+    } else if (action == "ban") {
+        info.status = CHAT_MEMBER_BANNED;
+        info.banned_at = std::chrono::system_clock::now();
+        info.left_at.reset();
+    } else if (action == "leave") {
+        info.status = CHAT_MEMBER_LEFT;
+        info.left_at = std::chrono::system_clock::now();
+        info.banned_at.reset();
+    } else if (action == "activate") {
+        info.status = CHAT_MEMBER_ACTIVE;
+        info.left_at.reset();
+        info.banned_at.reset();
+    } else {
+        return false;
+    }
+
+    if (m_dbEnabled) {
+        auto db = ensureDbOpen(m_dbHost, m_dbPort, m_dbName, m_dbUser, m_dbPassword);
+        if (!db.isValid() || !db.isOpen()) {
+            m_dbEnabled = false;
+            qWarning() << "MINM: MySQL open failed, switching to in-memory.";
+        } else {
+            QSqlQuery q(db);
+            q.prepare(
+                "INSERT INTO chat_participants (chat_id, user_id, participant_role, membership_status, joined_at, left_at, banned_at) "
+                "VALUES (?, ?, ?, ?, NOW(), ?, ?) "
+                "ON DUPLICATE KEY UPDATE "
+                "participant_role=VALUES(participant_role), "
+                "membership_status=VALUES(membership_status), "
+                "left_at=VALUES(left_at), banned_at=VALUES(banned_at)");
+            q.addBindValue(chatId);
+            q.addBindValue(participantId);
+            q.addBindValue(static_cast<int>(info.role));
+            q.addBindValue(static_cast<int>(info.status));
+
+            if (info.left_at.has_value()) {
+                const auto leftMs = std::chrono::duration_cast<std::chrono::milliseconds>(info.left_at.value().time_since_epoch()).count();
+                q.addBindValue(QDateTime::fromMSecsSinceEpoch(leftMs));
+            } else {
+                q.addBindValue(QVariant());
+            }
+
+            if (info.banned_at.has_value()) {
+                const auto bannedMs = std::chrono::duration_cast<std::chrono::milliseconds>(info.banned_at.value().time_since_epoch()).count();
+                q.addBindValue(QDateTime::fromMSecsSinceEpoch(bannedMs));
+            } else {
+                q.addBindValue(QVariant());
+            }
+
+            if (!q.exec()) {
+                qWarning() << "UPSERT chat_participants failed:" << q.lastError().text();
+                return false;
+            }
+        }
+    }
+
+    chat->setParticipantInfo(participantId, info);
+    return true;
+}
+
+QJsonObject MessageManager::handleGetChatParticipants(const QJsonObject& data)
+{
+    if (m_dbEnabled) loadFromDb();
+    QJsonObject response;
+
+    if (!data.contains("chatId")) {
+        response["error"] = "chatId is required";
+        return response;
+    }
+
+    const chat_id chatId = data["chatId"].toInt();
+    auto chatIt = std::find_if(m_chats.begin(), m_chats.end(), [chatId](const auto& c) { return c && c->id == chatId; });
+    if (chatIt == m_chats.end()) {
+        response["error"] = "Chat not found";
+        return response;
+    }
+
+    QJsonArray participantsArray;
+    const auto meta = (*chatIt)->getAllParticipantInfo();
+    for (const auto& [uid, info] : meta) {
+        QJsonObject participantObj;
+        participantObj["userId"] = static_cast<qint64>(uid);
+        participantObj["role"] = static_cast<int>(info.role);
+        participantObj["status"] = static_cast<int>(info.status);
+        const auto joinedMs = std::chrono::duration_cast<std::chrono::milliseconds>(info.joined_at.time_since_epoch()).count();
+        participantObj["joinedAt"] = QDateTime::fromMSecsSinceEpoch(joinedMs).toString(Qt::ISODateWithMs);
+        if (info.left_at.has_value()) {
+            const auto leftMs = std::chrono::duration_cast<std::chrono::milliseconds>(info.left_at.value().time_since_epoch()).count();
+            participantObj["leftAt"] = QDateTime::fromMSecsSinceEpoch(leftMs).toString(Qt::ISODateWithMs);
+        }
+        if (info.banned_at.has_value()) {
+            const auto bannedMs = std::chrono::duration_cast<std::chrono::milliseconds>(info.banned_at.value().time_since_epoch()).count();
+            participantObj["bannedAt"] = QDateTime::fromMSecsSinceEpoch(bannedMs).toString(Qt::ISODateWithMs);
+        }
+        participantsArray.append(participantObj);
+    }
+
+    response["chatId"] = static_cast<qint64>(chatId);
+    response["participants"] = participantsArray;
+    response["count"] = participantsArray.size();
+    return response;
+}
+
+QJsonObject MessageManager::handlePostChatParticipants(const QJsonObject& data)
+{
+    QJsonObject response;
+
+    if (updateChatParticipant(data)) {
+        response["status"] = "success";
+        response["message"] = "Chat participant updated";
+    } else {
+        response["status"] = "error";
+        response["message"] = "Failed to update chat participant";
+    }
+
     return response;
 }
 

@@ -3,6 +3,26 @@
 #include <QDateTime>
 #include <algorithm>
 
+QString WidgetManager::roleToLabel(chat_participant_role role) const
+{
+    switch (role) {
+    case CHAT_ROLE_OWNER: return "Owner";
+    case CHAT_ROLE_ADMIN: return "Admin";
+    case CHAT_ROLE_MEMBER:
+    default: return "Member";
+    }
+}
+
+QString WidgetManager::statusToLabel(chat_participant_status status) const
+{
+    switch (status) {
+    case CHAT_MEMBER_ACTIVE: return "Active";
+    case CHAT_MEMBER_LEFT: return "Left";
+    case CHAT_MEMBER_BANNED: return "Banned";
+    default: return "Unknown";
+    }
+}
+
 void WidgetManager::updateContacts()
 {
     m_contactsTree->clear();
@@ -154,8 +174,9 @@ void WidgetManager::onChatSelected(chat_id chatId)
     updateMessagesForChat(chat->id);
     updateSendButtonState();
     auto participants = chat->getParticipants();
+    auto participantsMeta = chat->getAllParticipantInfo();
     auto messages = chat->getMessages();
-    QString participantsStr, messagesStr;
+    QString participantsStr, messagesStr, participantsMetaStr;
     for (size_t i = 0; i < participants.size(); i++) {
         participantsStr += QString::number(participants[i]);
         if (i < participants.size() - 1) participantsStr += ", ";
@@ -163,6 +184,20 @@ void WidgetManager::onChatSelected(chat_id chatId)
     for (size_t i = 0; i < messages.size(); i++) {
         messagesStr += QString::number(messages[i]);
         if (i < messages.size() - 1) messagesStr += ", ";
+    }
+    for (const auto& [uid, info] : participantsMeta) {
+        QString role = roleToLabel(info.role);
+        QString status = statusToLabel(info.status);
+        participantsMetaStr += QString("%1 (%2, %3)").arg(uid).arg(role).arg(status);
+        if (info.left_at.has_value()) {
+            const auto leftMs = std::chrono::duration_cast<std::chrono::milliseconds>(info.left_at.value().time_since_epoch()).count();
+            participantsMetaStr += QString(", left: %1").arg(QDateTime::fromMSecsSinceEpoch(leftMs).toString("dd.MM.yyyy HH:mm:ss"));
+        }
+        if (info.banned_at.has_value()) {
+            const auto bannedMs = std::chrono::duration_cast<std::chrono::milliseconds>(info.banned_at.value().time_since_epoch()).count();
+            participantsMetaStr += QString(", banned: %1").arg(QDateTime::fromMSecsSinceEpoch(bannedMs).toString("dd.MM.yyyy HH:mm:ss"));
+        }
+        participantsMetaStr += "<br>";
     }
     QString typeIcon = (chat->type == chat_type::PRIVATE) ? "🔒" : "👥";
     QString typeText = (chat->type == chat_type::PRIVATE) ? "Приватный" : "Групповой";
@@ -174,10 +209,12 @@ void WidgetManager::onChatSelected(chat_id chatId)
             "<p><b style='color: #ce9178;'>Участников:</b> <span style='color: #dcdcaa;'>👤 %3</span></p>"
             "<p><b style='color: #ce9178;'>Сообщений:</b> <span style='color: #dcdcaa;'>💬 %4</span></p>"
             "<p><b style='color: #ce9178;'>Участники:</b> <span style='color: #d4d4d4;'>%5</span></p>"
+            "<p><b style='color: #ce9178;'>Роли/статусы:</b><br><span style='color: #d4d4d4;'>%9</span></p>"
             "<p><b style='color: #ce9178;'>Сообщения ID:</b> <span style='color: #858585;'>%6</span></p></div>")
         .arg(chat->id).arg(typeText).arg(participants.size()).arg(messages.size())
         .arg(participantsStr).arg(messagesStr)
-        .arg(chat->type == chat_type::PRIVATE ? "#ce9178" : "#4ec9b0").arg(typeIcon));
+        .arg(chat->type == chat_type::PRIVATE ? "#ce9178" : "#4ec9b0").arg(typeIcon)
+        .arg(participantsMetaStr.isEmpty() ? "-" : participantsMetaStr));
 }
 
 void WidgetManager::onMessageSelected(int row)

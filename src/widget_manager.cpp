@@ -117,8 +117,30 @@ void WidgetManager::setupUI()
     m_messageDetails->setReadOnly(true);
     m_messageDetails->setMaximumHeight(150);
     m_messageDetails->setStyleSheet(Ui::detailsTextEditStyle());
+
+    QHBoxLayout *participantControlsTop = new QHBoxLayout();
+    m_participantIdInput = new QLineEdit(detailsWidget);
+    m_participantIdInput->setPlaceholderText("Participant user_id");
+    m_roleCombo = new QComboBox(detailsWidget);
+    m_roleCombo->addItem("Owner", static_cast<int>(CHAT_ROLE_OWNER));
+    m_roleCombo->addItem("Admin", static_cast<int>(CHAT_ROLE_ADMIN));
+    m_roleCombo->addItem("Member", static_cast<int>(CHAT_ROLE_MEMBER));
+    m_setRoleButton = new QPushButton("Set role", detailsWidget);
+    participantControlsTop->addWidget(m_participantIdInput, 1);
+    participantControlsTop->addWidget(m_roleCombo, 1);
+    participantControlsTop->addWidget(m_setRoleButton, 0);
+
+    QHBoxLayout *participantControlsBottom = new QHBoxLayout();
+    m_banButton = new QPushButton("Ban", detailsWidget);
+    m_leaveButton = new QPushButton("Leave", detailsWidget);
+    m_activateButton = new QPushButton("Activate", detailsWidget);
+    participantControlsBottom->addWidget(m_banButton);
+    participantControlsBottom->addWidget(m_leaveButton);
+    participantControlsBottom->addWidget(m_activateButton);
     detailsLayout->addWidget(m_detailsLabel);
     detailsLayout->addWidget(m_messageDetails);
+    detailsLayout->addLayout(participantControlsTop);
+    detailsLayout->addLayout(participantControlsBottom);
     detailsWidget->setLayout(detailsLayout);
 
     rightSplitter->addWidget(messagesWidget);
@@ -180,4 +202,61 @@ void WidgetManager::setupConnections()
             m_messageInput->clear();
     });
     connect(m_messageInput, &QLineEdit::returnPressed, [this]() { m_sendButton->animateClick(); });
+    connect(m_setRoleButton, &QPushButton::clicked, [this]() {
+        if (m_selectedChatId < 0) return;
+        bool ok = false;
+        const user_id participantId = m_participantIdInput->text().toInt(&ok);
+        if (!ok) return;
+        QJsonObject data;
+        data["chatId"] = static_cast<qint64>(m_selectedChatId);
+        data["userId"] = static_cast<qint64>(participantId);
+        data["action"] = "set_role";
+        data["role"] = m_roleCombo->currentData().toInt();
+        if (m_manager.updateChatParticipant(data)) {
+            updateChats();
+            onChatSelected(m_selectedChatId);
+        }
+    });
+    connect(m_banButton, &QPushButton::clicked, [this]() {
+        if (m_selectedChatId < 0) return;
+        bool ok = false;
+        const user_id participantId = m_participantIdInput->text().toInt(&ok);
+        if (!ok) return;
+        QJsonObject data;
+        data["chatId"] = static_cast<qint64>(m_selectedChatId);
+        data["userId"] = static_cast<qint64>(participantId);
+        data["action"] = "ban";
+        if (m_manager.updateChatParticipant(data)) {
+            updateChats();
+            onChatSelected(m_selectedChatId);
+        }
+    });
+    connect(m_leaveButton, &QPushButton::clicked, [this]() {
+        if (m_selectedChatId < 0) return;
+        bool ok = false;
+        const user_id participantId = m_participantIdInput->text().toInt(&ok);
+        if (!ok) return;
+        QJsonObject data;
+        data["chatId"] = static_cast<qint64>(m_selectedChatId);
+        data["userId"] = static_cast<qint64>(participantId);
+        data["action"] = "leave";
+        if (m_manager.updateChatParticipant(data)) {
+            updateChats();
+            onChatSelected(m_selectedChatId);
+        }
+    });
+    connect(m_activateButton, &QPushButton::clicked, [this]() {
+        if (m_selectedChatId < 0) return;
+        bool ok = false;
+        const user_id participantId = m_participantIdInput->text().toInt(&ok);
+        if (!ok) return;
+        QJsonObject data;
+        data["chatId"] = static_cast<qint64>(m_selectedChatId);
+        data["userId"] = static_cast<qint64>(participantId);
+        data["action"] = "activate";
+        if (m_manager.updateChatParticipant(data)) {
+            updateChats();
+            onChatSelected(m_selectedChatId);
+        }
+    });
 }

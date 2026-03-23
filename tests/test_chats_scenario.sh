@@ -70,10 +70,10 @@ setup_mysql() {
         fi
     fi
 
-    echo "MySQL: seeding users (idempotent, keep id=0)..."
+    echo "MySQL: seeding users (idempotent, keep user_id=0)..."
     sudo mysql $MYSQL_ROOT_ARGS "${DB_NAME}" -e "
         SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO';
-        INSERT INTO users (id, username, password_hash, online) VALUES
+        INSERT INTO users (user_id, username, password_hash, online) VALUES
             (0, 'user0', 'test_hash', 0),
             (1, 'user1', 'test_hash', 0),
             (2, 'user2', 'test_hash', 0),

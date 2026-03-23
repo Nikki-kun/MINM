@@ -27,11 +27,11 @@
 **Текущее:** `participants` и `messages` — векторы внутри объекта.
 
 **В MySQL:**
-- `chats` — только id, type, created_date
+- `chats` — только `chat_id`, `type`, `chat_created_at`
 - `chat_participants` — связь many-to-many
 - `messages.chat_id` — связь сообщений с чатом (без отдельной таблицы chat_messages)
 
-**Рекомендация:** В C++ оставить текущую структуру для in-memory кэша. При загрузке из БД — заполнять `participants` из `chat_participants`, `messages` — запросом `SELECT id FROM messages WHERE chat_id=? ORDER BY timestamp`.
+**Рекомендация:** В C++ оставить текущую структуру для in-memory кэша. При загрузке из БД — заполнять `participants` из `chat_participants`, `messages` — запросом `SELECT message_id FROM messages WHERE chat_id=? ORDER BY message_created_at`.
 
 ### 3. Message — небольшое уточнение
 

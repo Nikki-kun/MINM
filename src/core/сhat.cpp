@@ -6,12 +6,26 @@
 Chat::Chat(chat_id id, chat_type type, const std::vector<user_id>& participants, 
            const std::vector<message_id>& messages, 
            std::chrono::system_clock::time_point created_date)
-    : id(id), type(type), participants(participants), 
-      messages(messages), created_date(created_date) {}
+    : id(id), type(type), participants(participants),
+      messages(messages), created_date(created_date) {
+    for (const auto participant : participants) {
+        ChatParticipantInfo info;
+        info.role = CHAT_ROLE_MEMBER;
+        info.status = CHAT_MEMBER_ACTIVE;
+        participantInfo[participant] = info;
+    }
+}
 
 Chat::Chat(chat_id id, chat_type type, const std::vector<user_id>& participants)
-    : id(id), type(type), participants(participants), 
-      created_date(std::chrono::system_clock::now()) {}
+    : id(id), type(type), participants(participants),
+      created_date(std::chrono::system_clock::now()) {
+    for (const auto participant : participants) {
+        ChatParticipantInfo info;
+        info.role = CHAT_ROLE_MEMBER;
+        info.status = CHAT_MEMBER_ACTIVE;
+        participantInfo[participant] = info;
+    }
+}
 
 Chat& Chat::operator+(user_id participant) {
     std::unique_lock<std::shared_mutex> lock(participants_mutex);
@@ -19,6 +33,10 @@ Chat& Chat::operator+(user_id participant) {
     if (std::find(participants.begin(), participants.end(), participant) == participants.end()) {
         participants.push_back(participant);
     }
+    ChatParticipantInfo info;
+    info.role = CHAT_ROLE_MEMBER;
+    info.status = CHAT_MEMBER_ACTIVE;
+    participantInfo[participant] = info;
     
     return *this;
 }
@@ -30,6 +48,7 @@ Chat& Chat::operator-(user_id participant) {
     if (it != participants.end()) {
         participants.erase(it);
     }
+    participantInfo.erase(participant);
     
     return *this;
 }
@@ -40,6 +59,18 @@ void Chat::addParticipant(user_id participant) {
     if (std::find(participants.begin(), participants.end(), participant) == participants.end()) {
         participants.push_back(participant);
     }
+    ChatParticipantInfo info;
+    info.role = CHAT_ROLE_MEMBER;
+    info.status = CHAT_MEMBER_ACTIVE;
+    participantInfo[participant] = info;
+}
+
+void Chat::addParticipant(user_id participant, const ChatParticipantInfo& info) {
+    std::unique_lock<std::shared_mutex> lock(participants_mutex);
+    if (std::find(participants.begin(), participants.end(), participant) == participants.end()) {
+        participants.push_back(participant);
+    }
+    participantInfo[participant] = info;
 }
 
 void Chat::removeParticipant(user_id participant) {
@@ -49,11 +80,40 @@ void Chat::removeParticipant(user_id participant) {
     if (it != participants.end()) {
         participants.erase(it);
     }
+    participantInfo.erase(participant);
 }
 
 bool Chat::hasParticipant(user_id participant) const {
     std::shared_lock<std::shared_mutex> lock(participants_mutex);
     return std::find(participants.begin(), participants.end(), participant) != participants.end();
+}
+
+bool Chat::setParticipantInfo(user_id participant, const ChatParticipantInfo& info) {
+    std::unique_lock<std::shared_mutex> lock(participants_mutex);
+    participantInfo[participant] = info;
+
+    auto it = std::find(participants.begin(), participants.end(), participant);
+    const bool active = (info.status == CHAT_MEMBER_ACTIVE);
+    if (active && it == participants.end()) {
+        participants.push_back(participant);
+    } else if (!active && it != participants.end()) {
+        participants.erase(it);
+    }
+    return true;
+}
+
+std::optional<ChatParticipantInfo> Chat::getParticipantInfo(user_id participant) const {
+    std::shared_lock<std::shared_mutex> lock(participants_mutex);
+    const auto it = participantInfo.find(participant);
+    if (it == participantInfo.end()) {
+        return std::nullopt;
+    }
+    return it->second;
+}
+
+std::unordered_map<user_id, ChatParticipantInfo> Chat::getAllParticipantInfo() const {
+    std::shared_lock<std::shared_mutex> lock(participants_mutex);
+    return participantInfo;
 }
 
 void Chat::addMessage(message_id msg_id) {

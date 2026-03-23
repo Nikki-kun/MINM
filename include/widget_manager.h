@@ -12,6 +12,7 @@
 #include <QVBoxLayout>
 #include <QSplitter>
 #include <QLineEdit>
+#include <QComboBox>
 #include "core/contact.h"
 #include "core/сhat.h"
 #include "core/message.h"
@@ -60,6 +61,8 @@ private:
     void clearAll();
     void updateMessagesForChat(chat_id chatId);
     void updateSendButtonState();
+    QString roleToLabel(chat_participant_role role) const;
+    QString statusToLabel(chat_participant_status status) const;
 
     MessageManager& m_manager;
     static constexpr user_id CURRENT_USER_ID = 0;
@@ -84,6 +87,12 @@ private:
 
     QLineEdit *m_messageInput;
     QPushButton *m_sendButton;
+    QLineEdit *m_participantIdInput;
+    QComboBox *m_roleCombo;
+    QPushButton *m_setRoleButton;
+    QPushButton *m_banButton;
+    QPushButton *m_leaveButton;
+    QPushButton *m_activateButton;
 };
 
 #endif // WIDGET_MANAGER_H
