@@ -10,13 +10,12 @@ CREATE TABLE `users` (
 	PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Общая таблица для контактов и заблокированных пользователей
 CREATE TABLE `user_interconnect` (
-	`user_id` INT NOT NULL COMMENT 'Пользователь, которому принадлежит связь',
-	`connected_user_id` INT NOT NULL COMMENT 'Связанный пользователь (контакт или заблокированный)',
-	`connected_user_name` VARCHAR(100) NOT NULL COMMENT 'Имя контакта (только для контактов, для блокировок можно заполнять как connected_user_id или оставить пустым)',
-	`type` TINYINT NOT NULL COMMENT 'Тип связи: 1 - контакт, 2 - заблокированный',
-	`connected_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Время добавления в контакты или блокировки',
+	`user_id` INT NOT NULL,
+	`connected_user_id` INT NOT NULL,
+	`connected_user_name` VARCHAR(100) NOT NULL,
+	`type` TINYINT NOT NULL,
+	`connected_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (`user_id`, `connected_user_id`, `type`),
 	KEY `idx_interconnect_user` (`user_id`),
 	KEY `idx_interconnect_connected` (`connected_user_id`)
