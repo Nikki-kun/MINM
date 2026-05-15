@@ -127,17 +127,20 @@ bool MessageManager::loadFromDb() {
         return std::chrono::system_clock::time_point{std::chrono::milliseconds(ms)};
     };
 
+    db.transaction();
+
     m_contacts.clear();
     m_chats.clear();
     m_messages.clear();
 
-    // Загрузка из user_interconnect (только контакты, type = 1)
     {
         QSqlQuery q(db);
         if (!q.exec("SELECT user_id, connected_user_id, connected_user_name, connected_at FROM user_interconnect WHERE type = 1 ORDER BY connected_at")) {
             qWarning() << "Contacts load failed:" << q.lastError().text();
+            db.rollback();
             return false;
         }
+        
         int loadedContacts = 0;
         while (q.next()) {
             user_id ownerId = q.value(0).toInt();
@@ -145,7 +148,6 @@ bool MessageManager::loadFromDb() {
             QString contactName = q.value(2).toString();
             QDateTime addedDate = parseDt(q.value(3));
 
-            // Для совместимости генерируем временный id
             contact_id tempId = static_cast<contact_id>(loadedContacts + 1);
             m_contacts.append(Contact(tempId, ownerId, contactId, contactName, addedDate));
             loadedContacts++;
@@ -153,82 +155,111 @@ bool MessageManager::loadFromDb() {
         qWarning() << "MINM: loaded contacts rows:" << loadedContacts;
     }
 
-    // Загрузка чатов (без изменений)
+    struct ChatInfo {
+        chat_id id;
+        chat_type type;
+        std::chrono::system_clock::time_point created_at;
+        QHash<user_id, ChatParticipantInfo> participants;
+    };
+    QHash<chat_id, ChatInfo> chatsMap;
+    
     {
         QSqlQuery q(db);
-        if (!q.exec("SELECT chat_id, type, chat_created_at FROM chats ORDER BY chat_id")) {
-            qWarning() << "Chats load failed:" << q.lastError().text();
+        if (!q.exec(R"(
+            SELECT 
+                c.chat_id, 
+                c.type, 
+                c.chat_created_at,
+                cp.user_id,
+                cp.participant_role,
+                cp.membership_status,
+                cp.joined_at,
+                cp.left_at,
+                cp.banned_at
+            FROM chats c
+            LEFT JOIN chat_participants cp ON c.chat_id = cp.chat_id
+            ORDER BY c.chat_id, cp.joined_at
+        )")) {
+            qWarning() << "Chats with participants load failed:" << q.lastError().text();
+            db.rollback();
             return false;
         }
-        int loadedChats = 0;
 
+        chat_id lastChatId = -1;
+        ChatInfo currentChat;
+        
         while (q.next()) {
-            chat_id id = q.value(0).toInt();
-            chat_type type = static_cast<chat_type>(q.value(1).toInt());
-            QDateTime createdDate = parseDt(q.value(2));
-            auto createdTp = toTp(createdDate);
-
-            std::vector<user_id> participants;
-            {
-                QSqlQuery qPart(db);
-                qPart.prepare("SELECT user_id, participant_role, membership_status, joined_at, left_at, banned_at "
-                              "FROM chat_participants WHERE chat_id=? ORDER BY joined_at ASC");
-                qPart.addBindValue(id);
-                if (qPart.exec()) {
-                    while (qPart.next()) {
-                        const user_id participantId = qPart.value(0).toInt();
-                        const chat_participant_status status = toStatus(qPart.value(2).toInt());
-                        if (status == CHAT_MEMBER_ACTIVE) {
-                            participants.push_back(participantId);
-                        }
-                    }
-                } else {
-                    qWarning() << "Participants load failed:" << qPart.lastError().text();
-                    return false;
+            chat_id chatId = q.value(0).toInt();
+            
+            if (chatId != lastChatId) {
+                if (lastChatId != -1) {
+                    chatsMap[lastChatId] = currentChat;
                 }
+                
+                currentChat.id = chatId;
+                currentChat.type = static_cast<chat_type>(q.value(1).toInt());
+                currentChat.created_at = toTp(parseDt(q.value(2)));
+                currentChat.participants.clear();
+                lastChatId = chatId;
             }
-
-            auto emptyMessages = std::vector<message_id>{};
-            auto chat = std::make_shared<Chat>(id, type, participants, emptyMessages, createdTp);
-            {
-                QSqlQuery qPartMeta(db);
-                qPartMeta.prepare("SELECT user_id, participant_role, membership_status, joined_at, left_at, banned_at "
-                                  "FROM chat_participants WHERE chat_id=? ORDER BY joined_at ASC");
-                qPartMeta.addBindValue(id);
-                if (!qPartMeta.exec()) {
-                    qWarning() << "Participants meta load failed:" << qPartMeta.lastError().text();
-                    return false;
+            
+            if (!q.value(3).isNull()) {
+                ChatParticipantInfo info;
+                info.role = toRole(q.value(4).toInt());
+                info.status = toStatus(q.value(5).toInt());
+                info.joined_at = toTp(parseDt(q.value(6)));
+                
+                if (!q.value(7).isNull()) {
+                    info.left_at = toTp(parseDt(q.value(7)));
                 }
-
-                while (qPartMeta.next()) {
-                    const user_id participantId = qPartMeta.value(0).toInt();
-                    ChatParticipantInfo info;
-                    info.role = toRole(qPartMeta.value(1).toInt());
-                    info.status = toStatus(qPartMeta.value(2).toInt());
-                    info.joined_at = toTp(parseDt(qPartMeta.value(3)));
-
-                    const QDateTime leftAt = parseDt(qPartMeta.value(4));
-                    if (leftAt.isValid()) info.left_at = toTp(leftAt);
-                    const QDateTime bannedAt = parseDt(qPartMeta.value(5));
-                    if (bannedAt.isValid()) info.banned_at = toTp(bannedAt);
-
-                    chat->setParticipantInfo(participantId, info);
+                if (!q.value(8).isNull()) {
+                    info.banned_at = toTp(parseDt(q.value(8)));
                 }
+                
+                currentChat.participants[q.value(3).toInt()] = info;
             }
-            m_chats.append(chat);
-            loadedChats++;
         }
-        qWarning() << "MINM: loaded chats rows:" << loadedChats;
+        
+        if (lastChatId != -1) {
+            chatsMap[lastChatId] = currentChat;
+        }
+        
+        qWarning() << "MINM: loaded chats with participants:" << chatsMap.size();
     }
 
-    // Загрузка сообщений (без изменений)
+    for (auto& chatInfo : chatsMap) {
+        std::vector<user_id> activeParticipants;
+        for (auto it = chatInfo.participants.begin(); it != chatInfo.participants.end(); ++it) {
+            if (it.value().status == CHAT_MEMBER_ACTIVE) {
+                activeParticipants.push_back(it.key());
+            }
+        }
+        
+        auto chat = std::make_shared<Chat>(
+            chatInfo.id, 
+            chatInfo.type, 
+            activeParticipants, 
+            std::vector<message_id>{}, 
+            chatInfo.created_at
+        );
+        
+        for (auto it = chatInfo.participants.begin(); it != chatInfo.participants.end(); ++it) {
+            chat->setParticipantInfo(it.key(), it.value());
+        }
+        
+        m_chats.append(chat);
+    }
+
     {
         QSqlQuery q(db);
         if (!q.exec("SELECT message_id, sender_id, chat_id, content, type, status, message_created_at FROM messages ORDER BY message_created_at ASC")) {
             qWarning() << "Messages load failed:" << q.lastError().text();
+            db.rollback();
             return false;
         }
 
+        QHash<chat_id, QVector<message_id>> messagesByChat;
+        
         int loadedMessages = 0;
         while (q.next()) {
             message_id id = q.value(0).toInt();
@@ -236,32 +267,38 @@ bool MessageManager::loadFromDb() {
             QVariant chatIdVar = q.value(2);
             chat_id receiverId = chatIdVar.isNull() ? -1 : chatIdVar.toInt();
             QString content = q.value(3).toString();
-
+            
             message_type type = static_cast<message_type>(q.value(4).toInt());
             message_status status = static_cast<message_status>(q.value(5).toInt());
             QDateTime tsDt = parseDt(q.value(6));
             auto tsTp = toTp(tsDt);
-
-            auto msg = std::make_shared<Message<std::string>>(id, senderId, receiverId, content.toStdString(), tsTp, type);
+            
+            auto msg = std::make_shared<Message<std::string>>(
+                id, senderId, receiverId, content.toStdString(), tsTp, type
+            );
             msg->setStatus(status);
             m_messages.append(msg);
+            
+            if (receiverId != -1) {
+                messagesByChat[receiverId].append(id);
+            }
             loadedMessages++;
         }
         qWarning() << "MINM: loaded messages rows:" << loadedMessages;
-    }
-
-    for (const auto& chatPtr : m_chats) {
-        if (!chatPtr) continue;
-
-        for (const auto& msgPtr : m_messages) {
-            if (!msgPtr) continue;
-            if (msgPtr->type == MESSAGE_BROADCAST || msgPtr->receiver_id == chatPtr->id) {
-                chatPtr->addMessage(msgPtr->id);
+        
+        for (auto& chat : m_chats) {
+            if (!chat) continue;
+            auto& msgIds = messagesByChat[chat->id];
+            for (message_id msgId : msgIds) {
+                chat->addMessage(msgId);
             }
         }
     }
 
-    qWarning() << "MINM: after attach, chats:" << m_chats.size() << "messages in memory:" << m_messages.size();
+    db.commit();
+    
+    qWarning() << "MINM: after attach, chats:" << m_chats.size() 
+               << "messages in memory:" << m_messages.size();
     return true;
 }
 
