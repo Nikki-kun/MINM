@@ -10,22 +10,16 @@ CREATE TABLE `users` (
 	PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `contacts` (
-	`contact_row_id` INT NOT NULL AUTO_INCREMENT,
-	`owner_id` INT NOT NULL,
-	`contact_id` INT NOT NULL,
-	`contact_name` VARCHAR(100) NOT NULL,
-	`contact_added_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (`contact_row_id`),
-	KEY `idx_contacts_owner` (`owner_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE `blocked_users` (
-	`user_id` INT NOT NULL,
-	`blocked_user_id` INT NOT NULL,
-	`blocked_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (`user_id`, `blocked_user_id`),
-	KEY `idx_blocked_users_blocked` (`blocked_user_id`)
+-- Общая таблица для контактов и заблокированных пользователей
+CREATE TABLE `user_interconnect` (
+	`user_id` INT NOT NULL COMMENT 'Пользователь, которому принадлежит связь',
+	`connected_user_id` INT NOT NULL COMMENT 'Связанный пользователь (контакт или заблокированный)',
+	`connected_user_name` VARCHAR(100) NOT NULL COMMENT 'Имя контакта (только для контактов, для блокировок можно заполнять как connected_user_id или оставить пустым)',
+	`type` TINYINT NOT NULL COMMENT 'Тип связи: 1 - контакт, 2 - заблокированный',
+	`connected_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Время добавления в контакты или блокировки',
+	PRIMARY KEY (`user_id`, `connected_user_id`, `type`),
+	KEY `idx_interconnect_user` (`user_id`),
+	KEY `idx_interconnect_connected` (`connected_user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `chats` (
@@ -50,7 +44,7 @@ CREATE TABLE `chat_participants` (
 CREATE TABLE `messages` (
 	`message_id` INT NOT NULL AUTO_INCREMENT,
 	`sender_id` INT NOT NULL,
-	`chat_id` INT NOT NULL,
+	`chat_id` INT NULL,
 	`content` VARCHAR(1000) NOT NULL,
 	`message_created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`status` TINYINT NOT NULL DEFAULT 0,
@@ -60,32 +54,23 @@ CREATE TABLE `messages` (
 	KEY `idx_messages_sender` (`sender_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE `contacts`
-	ADD CONSTRAINT `fk_contacts_owner` FOREIGN KEY (`owner_id`) REFERENCES `users` (`user_id`)
+-- Внешние ключи для таблицы user_interconnect
+ALTER TABLE `user_interconnect`
+	ADD CONSTRAINT `fk_interconnect_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`)
 		ON DELETE CASCADE ON UPDATE RESTRICT,
-	ADD CONSTRAINT `fk_contacts_contact` FOREIGN KEY (`contact_id`) REFERENCES `users` (`user_id`)
+	ADD CONSTRAINT `fk_interconnect_connected_user` FOREIGN KEY (`connected_user_id`) REFERENCES `users` (`user_id`)
 		ON DELETE CASCADE ON UPDATE RESTRICT;
 
-ALTER TABLE `blocked_users`
-	ADD CONSTRAINT `fk_blocked_users_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`)
-		ON DELETE CASCADE ON UPDATE RESTRICT,
-	ADD CONSTRAINT `fk_blocked_users_blocked` FOREIGN KEY (`blocked_user_id`) REFERENCES `users` (`user_id`)
-		ON DELETE CASCADE ON UPDATE RESTRICT;
-
+-- Внешние ключи для таблицы chat_participants
 ALTER TABLE `chat_participants`
 	ADD CONSTRAINT `fk_chat_participants_chat` FOREIGN KEY (`chat_id`) REFERENCES `chats` (`chat_id`)
 		ON DELETE CASCADE ON UPDATE RESTRICT,
 	ADD CONSTRAINT `fk_chat_participants_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`)
 		ON DELETE CASCADE ON UPDATE RESTRICT;
 
+-- Внешние ключи для таблицы messages
 ALTER TABLE `messages`
 	ADD CONSTRAINT `fk_messages_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`user_id`)
 		ON DELETE CASCADE ON UPDATE RESTRICT,
 	ADD CONSTRAINT `fk_messages_chat` FOREIGN KEY (`chat_id`) REFERENCES `chats` (`chat_id`)
-		ON DELETE CASCADE ON UPDATE RESTRICT;
-
-ADD FOREIGN KEY(`sender_id`) REFERENCES `users`(`user_id`)
-ON UPDATE NO ACTION ON DELETE CASCADE;
-ALTER TABLE `messages`
-ADD FOREIGN KEY(`chat_id`) REFERENCES `chats`(`chat_id`)
-ON UPDATE NO ACTION ON DELETE SET NULL;
+		ON DELETE SET NULL ON UPDATE RESTRICT;
