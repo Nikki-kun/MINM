@@ -155,7 +155,7 @@ if [ ! -f "$SERVER_BINARY" ]; then
     exit 1
 fi
 
-setup_mysql
+## setup_mysql
 
 if ! command -v curl &> /dev/null; then
     echo -e "${RED}Ошибка: curl не установлен!${NC}"

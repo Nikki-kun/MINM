@@ -131,26 +131,29 @@ bool MessageManager::loadFromDb() {
     m_chats.clear();
     m_messages.clear();
 
+    // Загрузка из user_interconnect (только контакты, type = 1)
     {
         QSqlQuery q(db);
-        if (!q.exec("SELECT contact_row_id, owner_id, contact_id, contact_name, contact_added_at FROM contacts ORDER BY contact_row_id")) {
+        if (!q.exec("SELECT user_id, connected_user_id, connected_user_name, connected_at FROM user_interconnect WHERE type = 1 ORDER BY connected_at")) {
             qWarning() << "Contacts load failed:" << q.lastError().text();
             return false;
         }
         int loadedContacts = 0;
         while (q.next()) {
-            contact_id id = q.value(0).toInt();
-            user_id ownerId = q.value(1).toInt();
-            user_id contactId = q.value(2).toInt();
-            QString contactName = q.value(3).toString();
-            QDateTime addedDate = parseDt(q.value(4));
+            user_id ownerId = q.value(0).toInt();
+            user_id contactId = q.value(1).toInt();
+            QString contactName = q.value(2).toString();
+            QDateTime addedDate = parseDt(q.value(3));
 
-            m_contacts.append(Contact(id, ownerId, contactId, contactName, addedDate));
+            // Для совместимости генерируем временный id
+            contact_id tempId = static_cast<contact_id>(loadedContacts + 1);
+            m_contacts.append(Contact(tempId, ownerId, contactId, contactName, addedDate));
             loadedContacts++;
         }
         qWarning() << "MINM: loaded contacts rows:" << loadedContacts;
     }
 
+    // Загрузка чатов (без изменений)
     {
         QSqlQuery q(db);
         if (!q.exec("SELECT chat_id, type, chat_created_at FROM chats ORDER BY chat_id")) {
@@ -218,6 +221,7 @@ bool MessageManager::loadFromDb() {
         qWarning() << "MINM: loaded chats rows:" << loadedChats;
     }
 
+    // Загрузка сообщений (без изменений)
     {
         QSqlQuery q(db);
         if (!q.exec("SELECT message_id, sender_id, chat_id, content, type, status, message_created_at FROM messages ORDER BY message_created_at ASC")) {
@@ -316,13 +320,16 @@ bool MessageManager::addContact(const QJsonObject& data)
             qWarning() << "MINM: MySQL open failed, switching to in-memory.";
         } else {
             QSqlQuery q(db);
-            q.prepare("INSERT INTO contacts (owner_id, contact_id, contact_name) VALUES (?, ?, ?)");
+            // Используем INSERT IGNORE или ON DUPLICATE KEY UPDATE для избежания дублей
+            q.prepare("INSERT INTO user_interconnect (user_id, connected_user_id, connected_user_name, type, connected_at) "
+                      "VALUES (?, ?, ?, 1, NOW()) "
+                      "ON DUPLICATE KEY UPDATE connected_user_name = VALUES(connected_user_name)");
             q.addBindValue(ownerId);
             q.addBindValue(contactId);
             q.addBindValue(contactName);
 
             if (!q.exec()) {
-                qWarning() << "INSERT contacts failed:" << q.lastError().text();
+                qWarning() << "INSERT user_interconnect (contact) failed:" << q.lastError().text();
                 return false;
             }
 
@@ -352,6 +359,36 @@ bool MessageManager::addContact(const QJsonObject& data)
 
 bool MessageManager::removeContact(contact_id id)
 {
+    // Для удаления нужно знать owner_id и contact_id
+    // Находим контакт по id
+    const Contact* targetContact = nullptr;
+    for (int i = 0; i < m_contacts.size(); i++) {
+        if (m_contacts[i].id == id) {
+            targetContact = &m_contacts[i];
+            break;
+        }
+    }
+    
+    if (!targetContact) return false;
+    
+    if (m_dbEnabled) {
+        auto db = ensureDbOpen(m_dbHost, m_dbPort, m_dbName, m_dbUser, m_dbPassword);
+        if (!db.isValid() || !db.isOpen()) {
+            m_dbEnabled = false;
+            qWarning() << "MINM: MySQL open failed, switching to in-memory.";
+        } else {
+            QSqlQuery q(db);
+            q.prepare("DELETE FROM user_interconnect WHERE user_id = ? AND connected_user_id = ? AND type = 1");
+            q.addBindValue(targetContact->ownerId);
+            q.addBindValue(targetContact->contactId);
+            
+            if (!q.exec()) {
+                qWarning() << "DELETE from user_interconnect failed:" << q.lastError().text();
+                return false;
+            }
+        }
+    }
+    
     for (int i = 0; i < m_contacts.size(); i++) {
         if (m_contacts[i].id == id) {
             m_contacts.remove(i);
