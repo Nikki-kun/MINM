@@ -63,7 +63,8 @@ private:
     void updateSendButtonState();
     QString roleToLabel(chat_participant_role role) const;
     QString statusToLabel(chat_participant_status status) const;
-
+    bool isSingleEmoji(const QString& text) const;
+    QString formatMessageContent(const QString& content) const;
     MessageManager& m_manager;
     static constexpr user_id CURRENT_USER_ID = 0;
     user_id m_selectedContactUserId = -1;

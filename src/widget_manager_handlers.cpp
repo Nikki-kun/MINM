@@ -3,6 +3,42 @@
 #include <QDateTime>
 #include <algorithm>
 
+bool WidgetManager::isSingleEmoji(const QString& text) const
+{
+    if (text.isEmpty()) return false;
+    
+    for (int i = 0; i < text.length(); ) {
+        uint codePoint = text.at(i).unicode();
+        
+        if (codePoint >= 0xD800 && codePoint <= 0xDFFF) {
+            if (i + 1 < text.length()) {
+                i += 2;
+                continue;
+            }
+        }
+        
+        if (codePoint < 0x1F000 && codePoint != 0xFE0F) {
+            return false;
+        }
+        i++;
+    }
+    
+    return true;
+}
+
+QString WidgetManager::formatMessageContent(const QString& content) const
+{
+    if (isSingleEmoji(content)) {
+        return content;
+    }
+    
+    QString escaped = content.toHtmlEscaped();
+    if (escaped.length() > 50) {
+        escaped = escaped.left(47) + "...";
+    }
+    return escaped;
+}
+
 QString WidgetManager::roleToLabel(chat_participant_role role) const
 {
     switch (role) {
@@ -115,11 +151,21 @@ void WidgetManager::updateMessagesForChat(chat_id chatId)
         receiverItem->setForeground(QBrush(QColor("#569cd6")));
         receiverItem->setFlags(receiverItem->flags() & ~Qt::ItemIsEditable);
         QString content = QString::fromStdString(message->getContent());
-        if (content.length() > 50) content = content.left(47) + "...";
-        QTableWidgetItem *contentItem = new QTableWidgetItem(content);
+        QString formattedContent = formatMessageContent(content);
+        QTableWidgetItem *contentItem = new QTableWidgetItem();
+        contentItem->setData(Qt::DisplayRole, formattedContent);
         contentItem->setForeground(QBrush(QColor("#d4d4d4")));
         contentItem->setToolTip(QString::fromStdString(message->getContent()));
         contentItem->setFlags(contentItem->flags() & ~Qt::ItemIsEditable);
+
+        if (isSingleEmoji(content)) {
+            contentItem->setTextAlignment(Qt::AlignCenter);
+            m_messagesTable->setRowHeight(i, 70);
+        } else {
+            if (content.length() > 50) content = content.left(47) + "...";
+            contentItem->setText(content);
+            m_messagesTable->setRowHeight(i, -1);
+        }
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(message->timestamp.time_since_epoch()).count();
         QTableWidgetItem *timeItem = new QTableWidgetItem(QDateTime::fromMSecsSinceEpoch(ms).toString("dd.MM.yyyy HH:mm:ss"));
         timeItem->setForeground(QBrush(QColor("#858585")));
